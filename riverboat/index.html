@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Physics Riverboat Simulator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#sim-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+canvas {
+  border: 2px solid #444;
+  border-radius: 8px;
+  background: #2a5a2a;
+}
+
+#controls {
+  width: 320px;
+  min-width: 320px;
+  background: #16213e;
+  padding: 20px;
+  overflow-y: auto;
+  border-left: 2px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#controls h2 {
+  text-align: center;
+  color: #64b5f6;
+  margin-bottom: 4px;
+  font-size: 1.2em;
+}
+
+.control-group {
+  background: #1a1a3e;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.control-group label {
+  display: block;
+  font-size: 0.85em;
+  color: #aaa;
+  margin-bottom: 4px;
+}
+
+.control-group .value-display {
+  font-size: 0.9em;
+  color: #64b5f6;
+  font-weight: bold;
+  float: right;
+}
+
+input[type="range"] {
+  width: 100%;
+  margin: 4px 0;
+  accent-color: #64b5f6;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  flex: 1;
+  min-width: 60px;
+  padding: 8px 4px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.85em;
+  transition: filter 0.15s;
+}
+.btn:hover { filter: brightness(1.2); }
+
+.btn-start { background: #4caf50; color: #fff; }
+.btn-stop { background: #f44336; color: #fff; }
+.btn-reset { background: #ff9800; color: #fff; }
+.btn-clear { background: #9e9e9e; color: #fff; }
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.toggle-row span {
+  font-size: 0.85em;
+}
+
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #555;
+  border-radius: 24px;
+  transition: 0.3s;
+}
+.slider:before {
+  content: "";
+  position: absolute;
+  height: 18px; width: 18px;
+  left: 3px; bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+.switch input:checked + .slider { background: #64b5f6; }
+.switch input:checked + .slider:before { transform: translateX(20px); }
+
+.info-box {
+  background: #1a1a3e;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 0.8em;
+  line-height: 1.6;
+}
+.info-box .label { color: #aaa; }
+.info-box .val { color: #64b5f6; font-weight: bold; }
+
+#angle-range-info {
+  text-align: center;
+  font-size: 0.8em;
+  color: #ffab40;
+  min-height: 1.2em;
+}
+</style>
+</head>
+<body>
+
+<div id="sim-container">
+  <canvas id="canvas" width="800" height="600"></canvas>
+</div>
+
+<div id="controls">
+  <h2>Riverboat Simulator</h2>
+
+  <div class="btn-row">
+    <button class="btn btn-start" id="btnStart">Start</button>
+    <button class="btn btn-stop" id="btnStop">Stop</button>
+    <button class="btn btn-reset" id="btnReset">Restart</button>
+    <button class="btn btn-clear" id="btnClear">Reset</button>
+  </div>
+
+  <div class="control-group">
+    <label>Boat Direction <span class="value-display" id="dirVal">90°</span></label>
+    <input type="range" id="dirSlider" min="0" max="1000" value="500" step="1">
+    <div id="angle-range-info"></div>
+  </div>
+
+  <div class="control-group">
+    <label>Boat Speed <span class="value-display" id="boatSpeedVal">5.0 m/s</span></label>
+    <input type="range" id="boatSpeedSlider" min="1" max="20" value="5" step="0.5">
+  </div>
+
+  <div class="control-group">
+    <label>Current Speed <span class="value-display" id="currentSpeedVal">3.0 m/s</span></label>
+    <input type="range" id="currentSpeedSlider" min="0" max="15" value="3" step="0.5">
+  </div>
+
+  <div class="control-group">
+    <label>River Width <span class="value-display" id="riverWidthVal">100 m</span></label>
+    <input type="range" id="riverWidthSlider" min="50" max="300" value="100" step="10">
+  </div>
+
+  <div class="control-group">
+    <div class="toggle-row">
+      <span>Show Components</span>
+      <label class="switch"><input type="checkbox" id="toggleComponents"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span>Show True Velocity (resultant)</span>
+      <label class="switch"><input type="checkbox" id="toggleResultant"><span class="slider"></span></label>
+    </div>
+  </div>
+
+  <div class="info-box" id="infoBox">
+    <div><span class="label">Boat Vx: </span><span class="val" id="infoVx">0.00 m/s</span></div>
+    <div><span class="label">Boat Vy: </span><span class="val" id="infoVy">0.00 m/s</span></div>
+    <div><span class="label">Resultant Vx: </span><span class="val" id="infoRVx">0.00 m/s</span></div>
+    <div><span class="label">Resultant Vy: </span><span class="val" id="infoRVy">0.00 m/s</span></div>
+    <div><span class="label">Resultant Speed: </span><span class="val" id="infoRS">0.00 m/s</span></div>
+    <div><span class="label">Position: </span><span class="val" id="infoPos">(0, 0) m</span></div>
+    <div><span class="label">Time: </span><span class="val" id="infoTime">0.00 s</span></div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// DOM refs
+const dirSlider = document.getElementById('dirSlider');
+const boatSpeedSlider = document.getElementById('boatSpeedSlider');
+const currentSpeedSlider = document.getElementById('currentSpeedSlider');
+const riverWidthSlider = document.getElementById('riverWidthSlider');
+const dirVal = document.getElementById('dirVal');
+const boatSpeedVal = document.getElementById('boatSpeedVal');
+const currentSpeedVal = document.getElementById('currentSpeedVal');
+const riverWidthVal = document.getElementById('riverWidthVal');
+const angleRangeInfo = document.getElementById('angle-range-info');
+const toggleComponents = document.getElementById('toggleComponents');
+const toggleResultant = document.getElementById('toggleResultant');
+
+// Defaults
+const DEFAULTS = { dir: 90, boatSpeed: 5, currentSpeed: 3, riverWidth: 100 };
+
+// State
+let state = {
+  dir: DEFAULTS.dir,
+  boatSpeed: DEFAULTS.boatSpeed,
+  currentSpeed: DEFAULTS.currentSpeed,
+  riverWidth: DEFAULTS.riverWidth,
+  boatX: 0,    // meters from left edge of river (horizontal)
+  boatY: 0,    // meters from south bank (vertical, 0=south bank)
+  running: false,
+  time: 0,
+  arrived: false,
+  trail: []
+};
+
+// Layout constants
+const BANK_HEIGHT = 60;
+const CANVAS_W = 800;
+const CANVAS_H = 600;
+
+// Water animation
+let waterOffset = 0;
+
+// Compute river visual area
+function getRiverRect() {
+  const maxRiverPx = CANVAS_H - 2 * BANK_HEIGHT;
+  const frac = state.riverWidth / 300;
+  const riverPxH = BANK_HEIGHT + frac * (maxRiverPx - BANK_HEIGHT);
+  const topBank = (CANVAS_H - riverPxH) / 2;
+  return { top: topBank, bottom: topBank + riverPxH, height: riverPxH };
+}
+
+// Convert physics coords to canvas coords (camera-aware)
+function toCanvas(physX, physY) {
+  const r = getRiverRect();
+  const viewWidthMeters = state.riverWidth * 3 * camera.zoom;
+  const pxPerMeterX = CANVAS_W / viewWidthMeters;
+  const pxPerMeterY = r.height / state.riverWidth;
+  const cx = CANVAS_W / 2 + (physX - camera.offsetX) * pxPerMeterX;
+  const cy = r.bottom - physY * pxPerMeterY;
+  return { x: cx, y: cy };
+}
+
+function pxPerMeter() {
+  const r = getRiverRect();
+  return r.height / state.riverWidth;
+}
+
+// Fixed angle range — camera follows the boat instead of restricting angles
+const validAngleRange = { min: 5, max: 175 };
+
+// Camera state: pans and zooms to keep boat visible
+let camera = { offsetX: 0, zoom: 1 };
+
+function updateCamera() {
+  // Collect all X positions that need to be visible
+  let minX = 0, maxX = 0; // always include origin
+
+  // Current boat position
+  minX = Math.min(minX, state.boatX);
+  maxX = Math.max(maxX, state.boatX);
+
+  // Trail
+  for (const pt of state.trail) {
+    minX = Math.min(minX, pt.x);
+    maxX = Math.max(maxX, pt.x);
+  }
+
+  // Predicted endpoint when boat reaches north bank
+  if (!state.arrived && state.boatY < state.riverWidth) {
+    const rad = state.dir * Math.PI / 180;
+    const bVx = state.boatSpeed * Math.cos(rad);
+    const bVy = state.boatSpeed * Math.sin(rad);
+    const rVx = bVx + state.currentSpeed;
+    const rVy = bVy;
+    if (rVy > 0.01) {
+      const timeToNorth = (state.riverWidth - state.boatY) / rVy;
+      const endX = state.boatX + rVx * timeToNorth;
+      minX = Math.min(minX, endX);
+      maxX = Math.max(maxX, endX);
+    }
+  }
+
+  // Add margin
+  const range = maxX - minX;
+  const margin = Math.max(range * 0.2, state.riverWidth * 0.5);
+  minX -= margin;
+  maxX += margin;
+
+  // Default view width in meters
+  const defaultViewWidth = state.riverWidth * 3;
+  const neededWidth = maxX - minX;
+
+  if (neededWidth <= defaultViewWidth) {
+    // Fits in default view — only pan if boat would be off-screen
+    const centerX = (minX + maxX) / 2;
+    const halfDefault = defaultViewWidth / 2;
+    // Only pan if needed (keep origin visible when possible)
+    if (maxX > halfDefault || minX < -halfDefault) {
+      camera.offsetX = centerX;
+    } else {
+      camera.offsetX = 0;
+    }
+    camera.zoom = 1;
+  } else {
+    // Need to zoom out
+    camera.zoom = neededWidth / defaultViewWidth;
+    camera.offsetX = (minX + maxX) / 2;
+  }
+}
+
+// Slider fixed 0–1000: center (500) = 90°
+// Left half [0,500] → [maxAngle, 90°] (toward west)
+// Right half [500,1000] → [90°, minAngle] (toward east)
+
+function sliderToAngle() {
+  const v = parseInt(dirSlider.value);
+  if (v <= 500) {
+    // Left half: 0→maxAngle, 500→90
+    return 90 + (validAngleRange.max - 90) * (500 - v) / 500;
+  } else {
+    // Right half: 500→90, 1000→minAngle
+    return 90 - (90 - validAngleRange.min) * (v - 500) / 500;
+  }
+}
+
+function angleToSlider(angle) {
+  if (angle >= 90) {
+    // Left half
+    if (validAngleRange.max === 90) return 500;
+    return 500 - (angle - 90) / (validAngleRange.max - 90) * 500;
+  } else {
+    // Right half
+    if (validAngleRange.min === 90) return 500;
+    return 500 + (90 - angle) / (90 - validAngleRange.min) * 500;
+  }
+}
+
+function updateAngleDisplay() {
+  dirSlider.value = Math.round(angleToSlider(state.dir));
+  dirVal.textContent = Math.round(state.dir) + '°';
+  angleRangeInfo.textContent = `Range: ${validAngleRange.min}° – ${validAngleRange.max}°`;
+}
+
+// Draw water ripples
+function drawWater(r) {
+  // Water background
+  const grad = ctx.createLinearGradient(0, r.top, 0, r.bottom);
+  grad.addColorStop(0, '#1565c0');
+  grad.addColorStop(0.5, '#1976d2');
+  grad.addColorStop(1, '#1565c0');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, r.top, CANVAS_W, r.height);
+
+  // Animated flow lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1.5;
+  const spacing = 30;
+  const numLines = Math.ceil(r.height / spacing);
+  for (let i = 0; i < numLines; i++) {
+    const y = r.top + i * spacing + 15;
+    ctx.beginPath();
+    for (let x = -50; x < CANVAS_W + 50; x += 5) {
+      const waveY = y + Math.sin((x + waterOffset + i * 40) * 0.03) * 4;
+      if (x === -50) ctx.moveTo(x, waveY);
+      else ctx.lineTo(x, waveY);
+    }
+    ctx.stroke();
+  }
+
+  // Current direction arrows
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  const arrowSpacingX = 120;
+  const arrowSpacingY = 60;
+  for (let y = r.top + 30; y < r.bottom - 10; y += arrowSpacingY) {
+    for (let x = 0; x < CANVAS_W; x += arrowSpacingX) {
+      const ax = ((x + waterOffset * 0.5) % arrowSpacingX) + (Math.floor(x / arrowSpacingX)) * arrowSpacingX;
+      const drawX = (ax + waterOffset * 0.3) % (CANVAS_W + 100) - 50;
+      drawArrowHead(drawX, y, 10, 0); // pointing right (east)
+    }
+  }
+}
+
+function drawArrowHead(x, y, size, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size * 0.5, -size * 0.5);
+  ctx.lineTo(-size * 0.5, size * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBanks(r) {
+  // South bank (bottom)
+  const southGrad = ctx.createLinearGradient(0, r.bottom, 0, CANVAS_H);
+  southGrad.addColorStop(0, '#5d4037');
+  southGrad.addColorStop(0.15, '#4caf50');
+  southGrad.addColorStop(1, '#2e7d32');
+  ctx.fillStyle = southGrad;
+  ctx.fillRect(0, r.bottom, CANVAS_W, CANVAS_H - r.bottom);
+
+  // North bank (top)
+  const northGrad = ctx.createLinearGradient(0, 0, 0, r.top);
+  northGrad.addColorStop(0, '#2e7d32');
+  northGrad.addColorStop(0.85, '#4caf50');
+  northGrad.addColorStop(1, '#5d4037');
+  ctx.fillStyle = northGrad;
+  ctx.fillRect(0, 0, CANVAS_W, r.top);
+
+  // Bank labels
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('SOUTH BANK', CANVAS_W / 2, r.bottom + 25);
+  ctx.fillText('NORTH BANK', CANVAS_W / 2, r.top - 12);
+
+  // Direction labels
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#ccc';
+  ctx.textAlign = 'left';
+  ctx.fillText('← West', 10, r.top + r.height / 2);
+  ctx.textAlign = 'right';
+  ctx.fillText('East →', CANVAS_W - 10, r.top + r.height / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('Current →', CANVAS_W / 2, r.top + 18);
+}
+
+function drawBoat(cx, cy, angleDeg) {
+  const rad = (angleDeg - 90) * Math.PI / 180; // convert so 90° = up
+  const size = 14;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-rad);
+  // Boat body
+  ctx.fillStyle = '#000000';
+  ctx.beginPath();
+  ctx.moveTo(0, -size * 1.3);
+  ctx.lineTo(-size * 0.6, size * 0.7);
+  ctx.quadraticCurveTo(0, size * 0.4, size * 0.6, size * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Pending labels collected during vector drawing, resolved & drawn together
+let pendingLabels = [];
+
+function drawVector(fromX, fromY, vx, vy, color, label) {
+  const scale = pxPerMeter() * 6; // visual scale
+  const rawLen = Math.sqrt(vx * vx + vy * vy);
+  if (rawLen < 0.001) return; // skip truly zero vectors
+
+  // Compute direction
+  const dirX = vx / rawLen;
+  const dirY = vy / rawLen;
+  const pxLen = rawLen * scale;
+  // Enforce minimum visible length of 25px so short components are always visible
+  const drawLen = Math.max(pxLen, 25);
+
+  const toX = fromX + dirX * drawLen;
+  const toY = fromY - dirY * drawLen; // canvas y is flipped
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(toX, toY);
+  ctx.stroke();
+
+  // Arrowhead — scale proportionally, capped between 10 and 20 px
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+  const ah = Math.min(20, Math.max(10, drawLen * 0.4));
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(toX, toY);
+  ctx.lineTo(toX - ah * Math.cos(angle - 0.35), toY - ah * Math.sin(angle - 0.35));
+  ctx.lineTo(toX - ah * Math.cos(angle + 0.35), toY - ah * Math.sin(angle + 0.35));
+  ctx.closePath();
+  ctx.fill();
+
+  // Queue label for deferred collision-free drawing
+  if (label) {
+    ctx.font = 'bold 11px sans-serif';
+    const textW = ctx.measureText(label).width;
+    const tipPad = 14;
+    const perpDist = 12;
+    const perpX = -Math.sin(angle);
+    const perpY = Math.cos(angle);
+    const lx = toX + Math.cos(angle) * tipPad + perpX * perpDist;
+    const ly = toY + Math.sin(angle) * tipPad + perpY * perpDist;
+    const padX = 4, padY = 2;
+    pendingLabels.push({
+      x: lx, y: ly,
+      w: textW + padX * 2, h: 11 + padY * 2,
+      text: label, color: color
+    });
+  }
+}
+
+function resolveAndDrawLabels() {
+  const PAD_X = 4, PAD_Y = 2;
+
+  // Resolve collisions: push overlapping labels apart iteratively
+  for (let iter = 0; iter < 20; iter++) {
+    let moved = false;
+    for (let i = 0; i < pendingLabels.length; i++) {
+      for (let j = i + 1; j < pendingLabels.length; j++) {
+        const a = pendingLabels[i];
+        const b = pendingLabels[j];
+        // Check AABB overlap
+        const overlapX = (a.w / 2 + b.w / 2) - Math.abs(a.x - b.x);
+        const overlapY = (a.h / 2 + b.h / 2) - Math.abs(a.y - b.y);
+        if (overlapX > 0 && overlapY > 0) {
+          // Push apart along the axis with less overlap
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          // Nudge each label away by half the overlap + margin
+          const pushX = (dx / dist) * (overlapX / 2 + 3);
+          const pushY = (dy / dist) * (overlapY / 2 + 3);
+          a.x += pushX; a.y += pushY;
+          b.x -= pushX; b.y -= pushY;
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+
+  // Draw all labels
+  for (const lb of pendingLabels) {
+    ctx.font = 'bold 11px sans-serif';
+    // Background pill
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.beginPath();
+    const r = lb.h / 2;
+    ctx.roundRect(lb.x - lb.w / 2, lb.y - lb.h / 2, lb.w, lb.h, r);
+    ctx.fill();
+    // Text
+    ctx.fillStyle = lb.color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(lb.text, lb.x, lb.y);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  pendingLabels = [];
+}
+
+function drawDashedLine(x1, y1, x2, y2, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawTrail() {
+  if (state.trail.length < 2) return;
+  ctx.strokeStyle = '#ffeb3b';
+  ctx.lineWidth = 4;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  const p0 = toCanvas(state.trail[0].x, state.trail[0].y);
+  ctx.moveTo(p0.x, p0.y);
+  for (let i = 1; i < state.trail.length; i++) {
+    const p = toCanvas(state.trail[i].x, state.trail[i].y);
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function updateInfo() {
+  const rad = state.dir * Math.PI / 180;
+  const boatVx = state.boatSpeed * Math.cos(rad); // boat's own x component
+  const boatVy = state.boatSpeed * Math.sin(rad); // boat's own y component
+  const resVx = boatVx + state.currentSpeed;      // resultant
+  const resVy = boatVy;
+  const resSpeed = Math.sqrt(resVx * resVx + resVy * resVy);
+
+  document.getElementById('infoVx').textContent = boatVx.toFixed(2) + ' m/s';
+  document.getElementById('infoVy').textContent = boatVy.toFixed(2) + ' m/s';
+  document.getElementById('infoRVx').textContent = resVx.toFixed(2) + ' m/s';
+  document.getElementById('infoRVy').textContent = resVy.toFixed(2) + ' m/s';
+  document.getElementById('infoRS').textContent = resSpeed.toFixed(2) + ' m/s';
+  document.getElementById('infoPos').textContent = `(${state.boatX.toFixed(1)}, ${state.boatY.toFixed(1)}) m`;
+  document.getElementById('infoTime').textContent = state.time.toFixed(2) + ' s';
+}
+
+function draw() {
+  updateCamera();
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  const r = getRiverRect();
+
+  drawBanks(r);
+  drawWater(r);
+  drawTrail();
+
+  // Boat position
+  const boatCanvas = toCanvas(state.boatX, state.boatY);
+  drawBoat(boatCanvas.x, boatCanvas.y, state.dir);
+
+  // Vectors
+  const rad = state.dir * Math.PI / 180;
+  const boatVx = state.boatSpeed * Math.cos(rad);
+  const boatVy = state.boatSpeed * Math.sin(rad);
+  const resVx = boatVx + state.currentSpeed;
+  const resVy = boatVy;
+
+  if (toggleResultant.checked) {
+    // Resultant (white)
+    drawVector(boatCanvas.x, boatCanvas.y, resVx, resVy, '#ffffff', 'Resultant');
+  }
+
+  if (toggleComponents.checked) {
+    const scale = pxPerMeter() * 6;
+    // Horizontal component of resultant (from boat)
+    drawVector(boatCanvas.x, boatCanvas.y, resVx, 0, '#ff9800', 'Vx');
+    // Vertical component of resultant (from boat)
+    drawVector(boatCanvas.x, boatCanvas.y, 0, resVy, '#8bc34a', 'Vy');
+    // Dashed lines — use same drawn lengths as drawVector (with 25px min)
+    const vxPx = Math.abs(resVx) < 0.001 ? 0 : Math.max(Math.abs(resVx) * scale, 25) * Math.sign(resVx);
+    const vyPx = Math.abs(resVy) < 0.001 ? 0 : Math.max(Math.abs(resVy) * scale, 25) * Math.sign(resVy);
+    const endVxX = boatCanvas.x + vxPx;
+    const endVyY = boatCanvas.y - vyPx;
+    if (Math.abs(resVx) >= 0.001 && Math.abs(resVy) >= 0.001) {
+      drawDashedLine(endVxX, boatCanvas.y, endVxX, endVyY, 'rgba(255,255,255,0.3)');
+      drawDashedLine(boatCanvas.x, endVyY, endVxX, endVyY, 'rgba(255,255,255,0.3)');
+    }
+  }
+
+  // Draw all vector labels with collision resolution
+  resolveAndDrawLabels();
+
+  // Arrived message
+  if (state.arrived) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(CANVAS_W / 2 - 160, CANVAS_H / 2 - 30, 320, 60);
+    ctx.fillStyle = '#4caf50';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Boat reached the North Bank!', CANVAS_W / 2, CANVAS_H / 2 + 8);
+  }
+
+  updateInfo();
+}
+
+let lastTime = null;
+function gameLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+
+  // Animate water
+  const waterSpeed = state.currentSpeed * 8;
+  waterOffset += waterSpeed * dt;
+
+  if (state.running && !state.arrived) {
+    const physicsDt = dt;
+    const rad = state.dir * Math.PI / 180;
+    const boatVx = state.boatSpeed * Math.cos(rad);
+    const boatVy = state.boatSpeed * Math.sin(rad);
+    const resVx = boatVx + state.currentSpeed;
+    const resVy = boatVy;
+
+    state.boatX += resVx * physicsDt;
+    state.boatY += resVy * physicsDt;
+    state.time += physicsDt;
+
+    // Record trail
+    state.trail.push({ x: state.boatX, y: state.boatY });
+
+    // Check if reached north bank
+    if (state.boatY >= state.riverWidth) {
+      state.boatY = state.riverWidth;
+      state.arrived = true;
+      state.running = false;
+    }
+  }
+
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// Event handlers
+dirSlider.addEventListener('input', () => {
+  state.dir = Math.round(sliderToAngle());
+  dirVal.textContent = state.dir + '°';
+});
+
+boatSpeedSlider.addEventListener('input', () => {
+  state.boatSpeed = parseFloat(boatSpeedSlider.value);
+  boatSpeedVal.textContent = state.boatSpeed.toFixed(1) + ' m/s';
+});
+
+currentSpeedSlider.addEventListener('input', () => {
+  state.currentSpeed = parseFloat(currentSpeedSlider.value);
+  currentSpeedVal.textContent = state.currentSpeed.toFixed(1) + ' m/s';
+});
+
+riverWidthSlider.addEventListener('input', () => {
+  state.riverWidth = parseFloat(riverWidthSlider.value);
+  riverWidthVal.textContent = state.riverWidth + ' m';
+});
+
+document.getElementById('btnStart').addEventListener('click', () => {
+  if (!state.arrived) {
+    state.running = true;
+  }
+});
+
+document.getElementById('btnStop').addEventListener('click', () => {
+  state.running = false;
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  state.running = false;
+  state.arrived = false;
+  state.boatX = 0;
+  state.boatY = 0;
+  state.time = 0;
+  state.trail = [];
+});
+
+document.getElementById('btnClear').addEventListener('click', () => {
+  state.running = false;
+  state.arrived = false;
+  state.boatX = 0;
+  state.boatY = 0;
+  state.time = 0;
+  state.trail = [];
+  state.dir = DEFAULTS.dir;
+  state.boatSpeed = DEFAULTS.boatSpeed;
+  state.currentSpeed = DEFAULTS.currentSpeed;
+  state.riverWidth = DEFAULTS.riverWidth;
+
+  dirSlider.value = angleToSlider(DEFAULTS.dir);
+  boatSpeedSlider.value = DEFAULTS.boatSpeed;
+  currentSpeedSlider.value = DEFAULTS.currentSpeed;
+  riverWidthSlider.value = DEFAULTS.riverWidth;
+
+  dirVal.textContent = DEFAULTS.dir + '°';
+  boatSpeedVal.textContent = DEFAULTS.boatSpeed.toFixed(1) + ' m/s';
+  currentSpeedVal.textContent = DEFAULTS.currentSpeed.toFixed(1) + ' m/s';
+  riverWidthVal.textContent = DEFAULTS.riverWidth + ' m';
+
+  toggleComponents.checked = false;
+  toggleResultant.checked = false;
+
+  camera.offsetX = 0;
+  camera.zoom = 1;
+
+  updateAngleDisplay();
+});
+
+// Init
+updateAngleDisplay();
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
