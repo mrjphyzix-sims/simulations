@@ -99,6 +99,25 @@ input[type="range"] {
 .btn-reset { background: #ff9800; color: #fff; }
 .btn-clear { background: #9e9e9e; color: #fff; }
 
+.speed-row {
+  display: flex;
+  gap: 6px;
+}
+.btn-speed {
+  flex: 1;
+  padding: 6px 4px;
+  border: 2px solid #444;
+  border-radius: 6px;
+  background: #1a1a3e;
+  color: #aaa;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.85em;
+  transition: all 0.15s;
+}
+.btn-speed:hover { border-color: #64b5f6; color: #64b5f6; }
+.btn-speed.active { border-color: #64b5f6; background: #64b5f6; color: #000; }
+
 .toggle-row {
   display: flex;
   align-items: center;
@@ -171,6 +190,15 @@ input[type="range"] {
   </div>
 
   <div class="control-group">
+    <label>Simulation Speed</label>
+    <div class="speed-row">
+      <button class="btn-speed active" data-speed="1">1×</button>
+      <button class="btn-speed" data-speed="2">2×</button>
+      <button class="btn-speed" data-speed="4">4×</button>
+    </div>
+  </div>
+
+  <div class="control-group">
     <label>Boat Direction <span class="value-display" id="dirVal">90°</span></label>
     <input type="range" id="dirSlider" min="0" max="1000" value="500" step="1">
     <div id="angle-range-info"></div>
@@ -232,6 +260,8 @@ const toggleResultant = document.getElementById('toggleResultant');
 
 // Defaults
 const DEFAULTS = { dir: 90, boatSpeed: 5, currentSpeed: 3, riverWidth: 100 };
+
+let simSpeed = 1;
 
 // State
 let state = {
@@ -701,7 +731,7 @@ function gameLoop(timestamp) {
   waterOffset += waterSpeed * dt;
 
   if (state.running && !state.arrived) {
-    const physicsDt = dt;
+    const physicsDt = dt * simSpeed;
     const rad = state.dir * Math.PI / 180;
     const boatVx = state.boatSpeed * Math.cos(rad);
     const boatVy = state.boatSpeed * Math.sin(rad);
@@ -800,6 +830,15 @@ document.getElementById('btnClear').addEventListener('click', () => {
   camera.zoom = 1;
 
   updateAngleDisplay();
+});
+
+// Speed buttons
+document.querySelectorAll('.btn-speed').forEach(btn => {
+  btn.addEventListener('click', () => {
+    simSpeed = parseInt(btn.dataset.speed);
+    document.querySelectorAll('.btn-speed').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
 });
 
 // Init
