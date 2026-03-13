@@ -95,7 +95,7 @@ input[type="range"] {
 .btn:hover { filter: brightness(1.2); }
 
 .btn-start { background: #4caf50; color: #fff; }
-.btn-stop { background: #f44336; color: #fff; }
+.btn-start.running { background: #f44336; }
 .btn-reset { background: #ff9800; color: #fff; }
 .btn-clear { background: #9e9e9e; color: #fff; }
 
@@ -166,7 +166,6 @@ input[type="range"] {
 
   <div class="btn-row">
     <button class="btn btn-start" id="btnStart">Start</button>
-    <button class="btn btn-stop" id="btnStop">Stop</button>
     <button class="btn btn-reset" id="btnReset">Restart</button>
     <button class="btn btn-clear" id="btnClear">Reset</button>
   </div>
@@ -721,6 +720,8 @@ function gameLoop(timestamp) {
       state.boatY = state.riverWidth;
       state.arrived = true;
       state.running = false;
+      btnStart.textContent = 'Start';
+      btnStart.classList.remove('running');
     }
   }
 
@@ -749,14 +750,12 @@ riverWidthSlider.addEventListener('input', () => {
   riverWidthVal.textContent = state.riverWidth + ' m';
 });
 
-document.getElementById('btnStart').addEventListener('click', () => {
-  if (!state.arrived) {
-    state.running = true;
-  }
-});
-
-document.getElementById('btnStop').addEventListener('click', () => {
-  state.running = false;
+const btnStart = document.getElementById('btnStart');
+btnStart.addEventListener('click', () => {
+  if (state.arrived) return;
+  state.running = !state.running;
+  btnStart.textContent = state.running ? 'Stop' : 'Start';
+  btnStart.classList.toggle('running', state.running);
 });
 
 document.getElementById('btnReset').addEventListener('click', () => {
@@ -766,6 +765,8 @@ document.getElementById('btnReset').addEventListener('click', () => {
   state.boatY = 0;
   state.time = 0;
   state.trail = [];
+  btnStart.textContent = 'Start';
+  btnStart.classList.remove('running');
 });
 
 document.getElementById('btnClear').addEventListener('click', () => {
@@ -790,6 +791,8 @@ document.getElementById('btnClear').addEventListener('click', () => {
   currentSpeedVal.textContent = DEFAULTS.currentSpeed.toFixed(1) + ' m/s';
   riverWidthVal.textContent = DEFAULTS.riverWidth + ' m';
 
+  btnStart.textContent = 'Start';
+  btnStart.classList.remove('running');
   toggleComponents.checked = false;
   toggleResultant.checked = false;
 
