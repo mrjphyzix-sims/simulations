@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Physics Momentum Simulator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#sim-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+canvas {
+  border: 2px solid #444;
+  border-radius: 8px;
+}
+
+#controls {
+  width: 330px;
+  min-width: 330px;
+  background: #16213e;
+  padding: 16px;
+  overflow-y: auto;
+  border-left: 2px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#controls h2 {
+  text-align: center;
+  color: #64b5f6;
+  font-size: 1.15em;
+  margin-bottom: 2px;
+}
+
+.control-group {
+  background: #1a1a3e;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.group-title {
+  font-size: 0.9em;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+.red-title  { color: #ef5350; }
+.blue-title { color: #42a5f5; }
+
+.control-group label {
+  display: block;
+  font-size: 0.78em;
+  color: #aaa;
+  margin-bottom: 5px;
+}
+
+/* mass buttons */
+.mass-row { display: flex; gap: 4px; }
+.btn-mass {
+  flex: 1;
+  padding: 5px 2px;
+  border: 2px solid #444;
+  border-radius: 5px;
+  background: #1a1a3e;
+  color: #aaa;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.78em;
+  transition: all 0.15s;
+}
+.btn-mass:hover { border-color: #999; color: #ddd; }
+.btn-mass.active-red  { border-color: #ef5350; background: #ef5350; color: #fff; }
+.btn-mass.active-blue { border-color: #42a5f5; background: #42a5f5; color: #fff; }
+
+/* velocity slider */
+.vel-minmax {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72em;
+  color: #555;
+  margin-bottom: 1px;
+}
+input[type="range"] { width: 100%; margin: 3px 0; }
+input[type="range"].red-range  { accent-color: #ef5350; }
+input[type="range"].blue-range { accent-color: #42a5f5; }
+input[type="range"].pop-range  { accent-color: #ab47bc; }
+input[type="range"]:disabled   { opacity: 0.35; }
+
+.vel-display {
+  text-align: center;
+  font-size: 0.88em;
+  font-weight: bold;
+  margin-top: 2px;
+}
+.red-val  { color: #ef5350; }
+.blue-val { color: #42a5f5; }
+.pop-val  { color: #ab47bc; }
+
+/* collision type */
+.collision-row { display: flex; gap: 5px; }
+.btn-collision {
+  flex: 1;
+  padding: 6px 3px;
+  border: 2px solid #444;
+  border-radius: 6px;
+  background: #1a1a3e;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 0.72em;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.3;
+  transition: all 0.15s;
+}
+.btn-collision:hover { border-color: #64b5f6; color: #64b5f6; }
+.btn-collision.active { border-color: #64b5f6; background: #64b5f6; color: #000; }
+
+/* main buttons */
+.btn-row { display: flex; gap: 8px; }
+.btn {
+  flex: 1;
+  padding: 9px 4px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.85em;
+  transition: filter 0.15s;
+}
+.btn:hover { filter: brightness(1.2); }
+.btn-play    { background: #4caf50; color: #fff; }
+.btn-play.running { background: #f44336; }
+.btn-restart { background: #ff9800; color: #fff; }
+.btn-reset   { background: #9e9e9e; color: #fff; }
+
+/* info box */
+.info-box {
+  background: #1a1a3e;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.78em;
+  line-height: 1.9;
+}
+.info-box .lbl  { color: #777; }
+.info-box .vred { color: #ef5350; font-weight: bold; }
+.info-box .vblu { color: #42a5f5; font-weight: bold; }
+.info-box .vwht { color: #64b5f6; font-weight: bold; }
+.info-box .divider {
+  border: none;
+  border-top: 1px solid #2a2a5e;
+  margin: 4px 0;
+}
+</style>
+</head>
+<body>
+
+<div id="sim-container">
+  <canvas id="canvas" width="820" height="490"></canvas>
+</div>
+
+<div id="controls">
+  <h2>Momentum Simulator</h2>
+
+  <!-- Play / Restart / Reset -->
+  <div class="btn-row">
+    <button class="btn btn-play"    id="btnPlay">Play</button>
+    <button class="btn btn-restart" id="btnRestart">Restart</button>
+    <button class="btn btn-reset"   id="btnReset">Reset</button>
+  </div>
+
+  <!-- Collision Type -->
+  <div class="control-group">
+    <label>Collision Type</label>
+    <div class="collision-row">
+      <button class="btn-collision active" data-type="elastic">Elastic</button>
+      <button class="btn-collision"        data-type="inelastic">Inelastic</button>
+      <button class="btn-collision"        data-type="stick">Stick</button>
+      <button class="btn-collision"        data-type="pop">Pop Apart</button>
+    </div>
+  </div>
+
+  <!-- Red Car -->
+  <div class="control-group">
+    <div class="group-title red-title">🔴 Red Car</div>
+    <label>Mass (kg)</label>
+    <div class="mass-row" id="redMassRow">
+      <button class="btn-mass" data-car="red" data-mass="5">5</button>
+      <button class="btn-mass active-red" data-car="red" data-mass="10">10</button>
+      <button class="btn-mass" data-car="red" data-mass="15">15</button>
+      <button class="btn-mass" data-car="red" data-mass="20">20</button>
+      <button class="btn-mass" data-car="red" data-mass="25">25</button>
+    </div>
+    <label style="margin-top:9px;" id="redVelLabel">Initial Velocity (m/s)</label>
+    <div class="vel-minmax"><span>← −15</span><span>0</span><span>+15 →</span></div>
+    <input type="range" id="redVelSlider" class="red-range" min="-15" max="15" value="-5" step="0.5">
+    <div class="vel-display red-val" id="redVelDisplay">−5.0 m/s ←</div>
+  </div>
+
+  <!-- Blue Car -->
+  <div class="control-group">
+    <div class="group-title blue-title">🔵 Blue Car</div>
+    <label>Mass (kg)</label>
+    <div class="mass-row" id="blueMassRow">
+      <button class="btn-mass" data-car="blue" data-mass="5">5</button>
+      <button class="btn-mass active-blue" data-car="blue" data-mass="10">10</button>
+      <button class="btn-mass" data-car="blue" data-mass="15">15</button>
+      <button class="btn-mass" data-car="blue" data-mass="20">20</button>
+      <button class="btn-mass" data-car="blue" data-mass="25">25</button>
+    </div>
+    <label style="margin-top:9px;" id="blueVelLabel">Initial Velocity (m/s)</label>
+    <div class="vel-minmax"><span>← −15</span><span>0</span><span>+15 →</span></div>
+    <input type="range" id="blueVelSlider" class="blue-range" min="-15" max="15" value="5" step="0.5">
+    <div class="vel-display blue-val" id="blueVelDisplay">+5.0 m/s →</div>
+  </div>
+
+  <!-- Pop Apart Strength (hidden by default) -->
+  <div class="control-group" id="popGroup" style="display:none;">
+    <label>Pop Strength — separation speed (m/s)</label>
+    <input type="range" id="popSlider" class="pop-range" min="1" max="20" value="8" step="0.5">
+    <div class="vel-display pop-val" id="popDisplay">8.0 m/s</div>
+  </div>
+
+  <!-- Info Box -->
+  <div class="info-box">
+    <div><span class="lbl">Red  v: </span><span class="vred" id="iRv">−5.00 m/s ←</span></div>
+    <div><span class="lbl">Red  p: </span><span class="vred" id="iRp">−50.00 kg·m/s</span></div>
+    <hr class="divider">
+    <div><span class="lbl">Blue v: </span><span class="vblu" id="iBv">+5.00 m/s →</span></div>
+    <div><span class="lbl">Blue p: </span><span class="vblu" id="iBp">+50.00 kg·m/s</span></div>
+    <hr class="divider">
+    <div><span class="lbl">Total p: </span><span class="vwht" id="iTp">0.00 kg·m/s</span></div>
+    <div><span class="lbl">Total KE: </span><span class="vwht" id="iTke">250.00 J</span></div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const CW = 820, CH = 490;
+
+// ── Layout constants ─────────────────────────────────────────────
+const SCALE     = 52;   // px per physics metre
+const CAR_WM    = 1.9;  // car width in metres
+const CAR_WPX   = CAR_WM * SCALE;  // ≈ 99 px
+const CAR_FH    = 54;   // front-face height (px)
+const ISO_D     = 22;   // isometric depth (px)
+const TRACK_CY  = 300;  // canvas y of the front rail
+
+// ── Defaults ────────────────────────────────────────────────────
+const DEF = {
+  redM: 10, redV: -5, blueM: 10, blueV: 5,
+  collisionType: 'elastic', popStrength: 8
+};
+
+// ── State ───────────────────────────────────────────────────────
+let S = {};   // filled by reset()
+
+function initState() {
+  const isPop = S.collisionType === 'pop';
+  S.redX  = isPop ?  -CAR_WM / 2 : -5;
+  S.blueX = isPop ?   CAR_WM / 2 :  5;
+  S.redV  = isPop ? 0 : parseFloat(document.getElementById('redVelSlider').value);
+  S.blueV = isPop ? 0 : parseFloat(document.getElementById('blueVelSlider').value);
+  S.running = false;
+  S.popped  = false;
+  S.stuck   = false;
+  S.colliding = false;
+  S.flash   = 0;         // collision flash counter
+  S.initKE  = ke();
+}
+
+function ke() {
+  return 0.5 * S.redM  * S.redV  * S.redV
+       + 0.5 * S.blueM * S.blueV * S.blueV;
+}
+
+// ── Camera ──────────────────────────────────────────────────────
+let camX = 0;
+function updateCam() {
+  const target = (S.redX + S.blueX) / 2;
+  camX += (target - camX) * 0.08;
+}
+function cx(physX) { return CW / 2 + (physX - camX) * SCALE; }
+
+// ── Drawing helpers ──────────────────────────────────────────────
+function lighten(r, g, b, a) { return `rgb(${Math.min(255,r+a)},${Math.min(255,g+a)},${Math.min(255,b+a)})`; }
+function darken (r, g, b, a) { return `rgb(${Math.max(0,r-a)},${Math.max(0,g-a)},${Math.max(0,b-a)})`; }
+
+// Parse "r,g,b" colour tuples for the two cars
+const RED_RGB  = [229, 57,  53];
+const BLUE_RGB = [30,  136, 229];
+
+function drawScene() {
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, CH * 0.48);
+  sky.addColorStop(0, '#1565c0');
+  sky.addColorStop(1, '#42a5f5');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, CW, CH * 0.48);
+
+  // Ground gradient
+  const gnd = ctx.createLinearGradient(0, CH * 0.48, 0, CH);
+  gnd.addColorStop(0,   '#558b2f');
+  gnd.addColorStop(0.4, '#689f38');
+  gnd.addColorStop(1,   '#33691e');
+  ctx.fillStyle = gnd;
+  ctx.fillRect(0, CH * 0.48, CW, CH * 0.52);
+
+  // Horizon line
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, CH * 0.48); ctx.lineTo(CW, CH * 0.48); ctx.stroke();
+
+  // Clouds
+  drawCloud(120,  55, 55);
+  drawCloud(430,  35, 70);
+  drawCloud(680,  70, 45);
+  drawCloud(300, 100, 35);
+}
+
+function drawCloud(x, y, r) {
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.beginPath();
+  ctx.arc(x,           y,           r,       0, Math.PI*2);
+  ctx.arc(x + r*0.75,  y - r*0.2,   r*0.65,  0, Math.PI*2);
+  ctx.arc(x - r*0.65,  y + r*0.05,  r*0.5,   0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawTrack() {
+  const railFront = TRACK_CY + 17;
+  const railBack  = TRACK_CY - 17;
+
+  // Ballast / gravel bed
+  const bed = ctx.createLinearGradient(0, railBack - 10, 0, railFront + 10);
+  bed.addColorStop(0,   '#5d4037');
+  bed.addColorStop(0.5, '#795548');
+  bed.addColorStop(1,   '#5d4037');
+  ctx.fillStyle = bed;
+  ctx.fillRect(0, railBack - 10, CW, railFront + 10 - (railBack - 10));
+
+  // Sleepers
+  ctx.fillStyle = '#3e2723';
+  const tieStep = 1.0; // metres
+  const firstTie = Math.floor((camX - 14) / tieStep) * tieStep;
+  for (let tx = firstTie; tx < camX + 14; tx += tieStep) {
+    const px = cx(tx);
+    if (px < -10 || px > CW + 10) continue;
+    ctx.fillRect(px - 5, railBack - 8, 10, railFront + 8 - (railBack - 8));
+  }
+
+  // Rails (back then front)
+  [railBack, railFront].forEach(ry => {
+    ctx.strokeStyle = '#9e9e9e';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(0, ry); ctx.lineTo(CW, ry); ctx.stroke();
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, ry - 1); ctx.lineTo(CW, ry - 1); ctx.stroke();
+  });
+}
+
+function drawCar(physX, rgb, label, vel, mass) {
+  const [r, g, b] = rgb;
+  const px  = cx(physX);
+  const fw  = CAR_WPX;
+  const fh  = CAR_FH;
+  const d   = ISO_D;
+  const x0  = px - fw / 2;  // left edge of front face
+  const y0  = TRACK_CY - fh; // top edge of front face
+
+  // Right (shadow) side face
+  ctx.fillStyle = darken(r, g, b, 60);
+  ctx.beginPath();
+  ctx.moveTo(x0 + fw,     y0);
+  ctx.lineTo(x0 + fw + d, y0 - d);
+  ctx.lineTo(x0 + fw + d, y0 - d + fh);
+  ctx.lineTo(x0 + fw,     y0 + fh);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Top face
+  ctx.fillStyle = lighten(r, g, b, 55);
+  ctx.beginPath();
+  ctx.moveTo(x0,      y0);
+  ctx.lineTo(x0 + fw, y0);
+  ctx.lineTo(x0 + fw + d, y0 - d);
+  ctx.lineTo(x0 + d,      y0 - d);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Front face (main body)
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillRect(x0, y0, fw, fh);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x0, y0, fw, fh);
+
+  // Stripe along bottom of front face
+  ctx.fillStyle = darken(r, g, b, 35);
+  ctx.fillRect(x0, y0 + fh - 12, fw, 12);
+
+  // Windows
+  const ww = 17, wh = 14, wy = y0 + 8;
+  ctx.fillStyle = 'rgba(200,235,255,0.9)';
+  ctx.fillRect(x0 + 10,       wy, ww, wh);
+  ctx.fillRect(x0 + fw - 10 - ww, wy, ww, wh);
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0 + 10,       wy, ww, wh);
+  ctx.strokeRect(x0 + fw - 10 - ww, wy, ww, wh);
+
+  // Wheels (two axles)
+  const wR = 9;
+  const wheelY = TRACK_CY + 5;
+  [x0 + 18, x0 + fw - 18].forEach(wx => {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(wx, wheelY, wR, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#bdbdbd'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(wx, wheelY, wR, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#757575';
+    ctx.beginPath(); ctx.arc(wx, wheelY, 3,  0, Math.PI*2); ctx.fill();
+  });
+
+  // Coupler bumpers (left and right ends)
+  ctx.fillStyle = '#424242';
+  ctx.fillRect(x0 - 7, TRACK_CY - 13, 7, 9);
+  ctx.fillRect(x0 + fw, TRACK_CY - 13, 7, 9);
+
+  // Car label on front face
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, px, y0 + fh - 6);
+
+  // ── Velocity label on roof ───────────────────────────────────
+  const speed   = Math.abs(vel).toFixed(1);
+  const dirArrow = vel >  0.02 ? '→' : vel < -0.02 ? '←' : '●';
+  const velText  = `${speed} m/s ${dirArrow}`;
+  const roofX    = px + d / 2;
+  const roofY    = y0 - d / 2 - 6;
+
+  ctx.font = 'bold 12px sans-serif';
+  const tw = ctx.measureText(velText).width;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.beginPath();
+  ctx.roundRect(roofX - tw/2 - 6, roofY - 9, tw + 12, 18, 4);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(velText, roofX, roofY);
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawFlash() {
+  if (S.flash <= 0) return;
+  const alpha = S.flash / 18;
+  const mx = cx((S.redX + S.blueX) / 2);
+  const my = TRACK_CY - CAR_FH / 2;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Expanding ring
+  ctx.strokeStyle = '#ffeb3b';
+  ctx.lineWidth = 3;
+  const radius = (18 - S.flash) * 4 + 10;
+  ctx.beginPath();
+  ctx.arc(mx, my, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Star burst — deterministic angles
+  const numRays = 8;
+  const rayColors = ['#ffeb3b','#ff9800','#f44336','#ffeb3b','#ff9800','#fff','#ff9800','#ffeb3b'];
+  for (let i = 0; i < numRays; i++) {
+    const angle = (i / numRays) * Math.PI * 2;
+    const len   = 20 + (i % 3) * 12;
+    ctx.strokeStyle = rayColors[i];
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.lineTo(mx + Math.cos(angle) * len, my + Math.sin(angle) * len);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+  S.flash--;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, CW, CH);
+  drawScene();
+  drawTrack();
+
+  // Draw left car first (painter's order)
+  if (S.redX <= S.blueX) {
+    drawCar(S.redX,  RED_RGB,  'RED',  S.redV,  S.redM);
+    drawCar(S.blueX, BLUE_RGB, 'BLUE', S.blueV, S.blueM);
+  } else {
+    drawCar(S.blueX, BLUE_RGB, 'BLUE', S.blueV, S.blueM);
+    drawCar(S.redX,  RED_RGB,  'RED',  S.redV,  S.redM);
+  }
+
+  drawFlash();
+  updateInfo();
+}
+
+// ── Physics ─────────────────────────────────────────────────────
+function resolveCollision() {
+  const m1 = S.redM,  v1 = S.redV;
+  const m2 = S.blueM, v2 = S.blueV;
+  S.flash = 18;
+
+  switch (S.collisionType) {
+    case 'elastic': {
+      S.redV  = ((m1 - m2)*v1 + 2*m2*v2) / (m1 + m2);
+      S.blueV = ((m2 - m1)*v2 + 2*m1*v1) / (m1 + m2);
+      break;
+    }
+    case 'inelastic': {
+      const e = 0.5;
+      S.redV  = (m1*v1 + m2*v2 + m2*e*(v2 - v1)) / (m1 + m2);
+      S.blueV = (m1*v1 + m2*v2 + m1*e*(v1 - v2)) / (m1 + m2);
+      break;
+    }
+    case 'stick': {
+      const vf = (m1*v1 + m2*v2) / (m1 + m2);
+      S.redV  = vf;
+      S.blueV = vf;
+      S.stuck = true;
+      break;
+    }
+  }
+
+  // Separate cars to prevent overlap
+  const overlap = CAR_WM - Math.abs(S.blueX - S.redX);
+  if (overlap > 0 && !S.stuck) {
+    S.redX  -= overlap / 2;
+    S.blueX += overlap / 2;
+  }
+}
+
+function triggerPop() {
+  const vRel = S.popStrength;
+  S.redV  = -(S.blueM * vRel) / (S.redM + S.blueM);
+  S.blueV =  (S.redM  * vRel) / (S.redM + S.blueM);
+  S.popped = true;
+  S.flash = 18;
+}
+
+function update(dt) {
+  if (!S.running) return;
+
+  // Pop apart trigger on first frame
+  if (S.collisionType === 'pop' && !S.popped) {
+    triggerPop();
+  }
+
+  if (S.stuck) {
+    // Both cars move together
+    S.redX  += S.redV * dt;
+    S.blueX  = S.redX + CAR_WM;
+  } else {
+    S.redX  += S.redV  * dt;
+    S.blueX += S.blueV * dt;
+
+    // Collision detection (not for pop apart mode)
+    if (S.collisionType !== 'pop') {
+      const dist     = S.blueX - S.redX;          // positive: blue is right of red
+      const approach = S.redV - S.blueV;           // positive: red closing in
+
+      if (dist < CAR_WM && approach > 0 && !S.colliding) {
+        // Snap to touching
+        const mid = (S.redX + S.blueX) / 2;
+        S.redX  = mid - CAR_WM / 2;
+        S.blueX = mid + CAR_WM / 2;
+        resolveCollision();
+        S.colliding = true;
+      } else if (dist >= CAR_WM) {
+        S.colliding = false;  // allow future collisions
+      }
+    }
+  }
+
+  updateCam();
+}
+
+// ── Info panel ──────────────────────────────────────────────────
+function dirStr(v) { return v > 0.02 ? '→' : v < -0.02 ? '←' : ''; }
+
+function updateInfo() {
+  const rv = S.redV,  rm = S.redM;
+  const bv = S.blueV, bm = S.blueM;
+  const rp = rm * rv, bp = bm * bv;
+  const tp = rp + bp;
+  const tke = 0.5*rm*rv*rv + 0.5*bm*bv*bv;
+
+  document.getElementById('iRv').textContent  = `${rv.toFixed(2)} m/s ${dirStr(rv)}`;
+  document.getElementById('iRp').textContent  = `${rp.toFixed(2)} kg·m/s`;
+  document.getElementById('iBv').textContent  = `${bv.toFixed(2)} m/s ${dirStr(bv)}`;
+  document.getElementById('iBp').textContent  = `${bp.toFixed(2)} kg·m/s`;
+  document.getElementById('iTp').textContent  = `${tp.toFixed(2)} kg·m/s`;
+  document.getElementById('iTke').textContent = `${tke.toFixed(2)} J`;
+}
+
+// ── Game loop ───────────────────────────────────────────────────
+let lastTS = null;
+function loop(ts) {
+  if (!lastTS) lastTS = ts;
+  const dt = Math.min((ts - lastTS) / 1000, 0.05);
+  lastTS = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ── UI helpers ──────────────────────────────────────────────────
+const btnPlay = document.getElementById('btnPlay');
+
+function setRunning(val) {
+  S.running = val;
+  btnPlay.textContent = val ? 'Pause' : 'Play';
+  btnPlay.classList.toggle('running', val);
+}
+
+function updateVelDisplays() {
+  const rv = parseFloat(document.getElementById('redVelSlider').value);
+  const bv = parseFloat(document.getElementById('blueVelSlider').value);
+  document.getElementById('redVelDisplay').textContent
+    = `${rv >= 0 ? '+' : ''}${rv.toFixed(1)} m/s ${dirStr(rv)}`;
+  document.getElementById('blueVelDisplay').textContent
+    = `${bv >= 0 ? '+' : ''}${bv.toFixed(1)} m/s ${dirStr(bv)}`;
+}
+
+function applyVelSlidersToState() {
+  if (S.collisionType !== 'pop') {
+    S.redV  = parseFloat(document.getElementById('redVelSlider').value);
+    S.blueV = parseFloat(document.getElementById('blueVelSlider').value);
+  }
+}
+
+function syncPopMode() {
+  const isPop = S.collisionType === 'pop';
+  document.getElementById('popGroup').style.display = isPop ? 'block' : 'none';
+  ['redVelSlider', 'blueVelSlider'].forEach(id => {
+    document.getElementById(id).disabled = isPop;
+  });
+}
+
+function fullReset() {
+  S.redM  = DEF.redM;
+  S.blueM = DEF.blueM;
+  S.collisionType = DEF.collisionType;
+  S.popStrength   = DEF.popStrength;
+
+  document.getElementById('redVelSlider').value  = DEF.redV;
+  document.getElementById('blueVelSlider').value = DEF.blueV;
+  document.getElementById('popSlider').value     = DEF.popStrength;
+  document.getElementById('popDisplay').textContent = DEF.popStrength.toFixed(1) + ' m/s';
+
+  document.querySelectorAll('[data-car="red"]').forEach(b =>
+    b.classList.toggle('active-red',  parseInt(b.dataset.mass) === DEF.redM));
+  document.querySelectorAll('[data-car="blue"]').forEach(b =>
+    b.classList.toggle('active-blue', parseInt(b.dataset.mass) === DEF.blueM));
+  document.querySelectorAll('.btn-collision').forEach(b =>
+    b.classList.toggle('active', b.dataset.type === DEF.collisionType));
+
+  syncPopMode();
+  updateVelDisplays();
+  setRunning(false);
+  camX = 0;
+  S.redV  = DEF.redV;
+  S.blueV = DEF.blueV;
+  initState();
+}
+
+// ── Event listeners ─────────────────────────────────────────────
+btnPlay.addEventListener('click', () => setRunning(!S.running));
+
+document.getElementById('btnRestart').addEventListener('click', () => {
+  setRunning(false);
+  camX = 0;
+  applyVelSlidersToState();
+  initState();
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  fullReset();
+});
+
+document.querySelectorAll('.btn-mass').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const car  = btn.dataset.car;
+    const mass = parseInt(btn.dataset.mass);
+    S[car + 'M'] = mass;
+    document.querySelectorAll(`[data-car="${car}"]`).forEach(b =>
+      b.classList.remove(car === 'red' ? 'active-red' : 'active-blue'));
+    btn.classList.add(car === 'red' ? 'active-red' : 'active-blue');
+  });
+});
+
+document.querySelectorAll('.btn-collision').forEach(btn => {
+  btn.addEventListener('click', () => {
+    S.collisionType = btn.dataset.type;
+    document.querySelectorAll('.btn-collision').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    syncPopMode();
+    setRunning(false);
+    camX = 0;
+    applyVelSlidersToState();
+    initState();
+  });
+});
+
+document.getElementById('redVelSlider').addEventListener('input', e => {
+  S.redV = parseFloat(e.target.value);
+  updateVelDisplays();
+});
+
+document.getElementById('blueVelSlider').addEventListener('input', e => {
+  S.blueV = parseFloat(e.target.value);
+  updateVelDisplays();
+});
+
+document.getElementById('popSlider').addEventListener('input', e => {
+  S.popStrength = parseFloat(e.target.value);
+  document.getElementById('popDisplay').textContent = S.popStrength.toFixed(1) + ' m/s';
+});
+
+// ── Boot ────────────────────────────────────────────────────────
+S.redM          = DEF.redM;
+S.blueM         = DEF.blueM;
+S.collisionType = DEF.collisionType;
+S.popStrength   = DEF.popStrength;
+S.redV          = DEF.redV;
+S.blueV         = DEF.blueV;
+initState();
+updateVelDisplays();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
