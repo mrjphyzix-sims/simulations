@@ -632,7 +632,7 @@ function update(dt) {
     }
   }
 
-  updateCam();
+  if (!dragCar) updateCam();
 
   // ── Screen-edge position clamp ────────────────────────────────
   // Cars stay visible but keep their velocity (wheels + label stay live).
@@ -855,8 +855,7 @@ canvas.addEventListener('mousemove', e => {
     if (S.blueX - S.redX < CAR_WM) S.blueX = S.redX + CAR_WM;
     if (S.blueX - S.redX >= CAR_WM) { S.colliding = false; S.stuck = false; }
   }
-  // Snap camera smoothly toward new midpoint
-  camX += ((S.redX + S.blueX) / 2 - camX) * 0.3;
+  // Camera is frozen during drag — nothing here
 });
 
 canvas.addEventListener('mouseup',    () => { dragCar = null; });
