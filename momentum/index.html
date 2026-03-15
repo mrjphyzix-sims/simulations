@@ -618,6 +618,16 @@ function update(dt) {
   }
 
   updateCam();
+
+  // ── Screen-edge stops ─────────────────────────────────────────
+  // When cars move apart, halt them before they leave the visible frame.
+  const halfView = CW / (2 * SCALE);
+  const edgeStop = halfView - CAR_WM / 2 - 0.4;   // metres from camX centre
+
+  if (S.redV > 0 && S.redX   > camX + edgeStop) { S.redX  = camX + edgeStop; S.redV  = 0; }
+  if (S.redV < 0 && S.redX   < camX - edgeStop) { S.redX  = camX - edgeStop; S.redV  = 0; }
+  if (S.blueV > 0 && S.blueX > camX + edgeStop) { S.blueX = camX + edgeStop; S.blueV = 0; }
+  if (S.blueV < 0 && S.blueX < camX - edgeStop) { S.blueX = camX - edgeStop; S.blueV = 0; }
 }
 
 // ── Info panel ──────────────────────────────────────────────────
