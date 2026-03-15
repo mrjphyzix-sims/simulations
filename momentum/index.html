@@ -188,7 +188,6 @@ input[type="range"]:disabled   { opacity: 0.35; }
     <label>Collision Type</label>
     <div class="collision-row">
       <button class="btn-collision active" data-type="elastic">Elastic</button>
-      <button class="btn-collision"        data-type="inelastic">Inelastic</button>
       <button class="btn-collision"        data-type="stick">Stick</button>
       <button class="btn-collision"        data-type="pop">Pop Apart</button>
     </div>
@@ -267,10 +266,9 @@ const DEF = { redM: 10, blueM: 10, collisionType: 'elastic', popStrength: 8 };
 
 // Per-collision-type velocity & position defaults
 const TYPE_DEFS = {
-  elastic:   { redV:  2, blueV: -2, redX: -5, blueX:  5 },
-  inelastic: { redV:  2, blueV: -2, redX: -5, blueX:  5 },
-  stick:     { redV:  2, blueV:  0, redX: -5, blueX:  0 },
-  pop:       { redV:  0, blueV:  0, redX: null, blueX: null }
+  elastic: { redV:  2, blueV: -2, redX: -5, blueX:  5 },
+  stick:   { redV:  2, blueV:  0, redX: -5, blueX:  0 },
+  pop:     { redV:  0, blueV:  0, redX: null, blueX: null }
 };
 
 function typeDef() { return TYPE_DEFS[S.collisionType]; }
