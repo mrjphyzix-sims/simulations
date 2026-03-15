@@ -288,8 +288,10 @@ function initState() {
   S.popped  = false;
   S.stuck   = false;
   S.colliding = false;
-  S.flash   = 0;         // collision flash counter
+  S.flash   = 0;
   S.initKE  = ke();
+  // Snap camera to starting midpoint so there's no pan on first frame
+  camX = (S.redX + S.blueX) / 2;
 }
 
 function ke() {
@@ -710,7 +712,6 @@ function fullReset() {
   syncPopMode();
   updateVelDisplays();
   setRunning(false);
-  camX = 0;
   initState();
 }
 
@@ -719,7 +720,6 @@ btnPlay.addEventListener('click', () => setRunning(!S.running));
 
 document.getElementById('btnRestart').addEventListener('click', () => {
   setRunning(false);
-  camX = 0;
   applyVelSlidersToState();
   initState();
 });
@@ -748,7 +748,6 @@ document.querySelectorAll('.btn-collision').forEach(btn => {
     syncPopMode();
     updateVelDisplays();
     setRunning(false);
-    camX = 0;
     initState();
   });
 });
