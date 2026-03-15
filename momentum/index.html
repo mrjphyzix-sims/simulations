@@ -260,6 +260,7 @@ const CAR_WPX   = CAR_WM * SCALE;  // ≈ 99 px
 const CAR_FH    = 54;   // front-face height (px)
 const ISO_D     = 22;   // isometric depth (px)
 const TRACK_CY  = 300;  // canvas y of the front rail
+const WHEEL_R   = 9;    // wheel radius in px
 
 // ── Defaults ────────────────────────────────────────────────────
 const DEF = { redM: 10, blueM: 10, collisionType: 'elastic', popStrength: 8 };
@@ -289,6 +290,8 @@ function initState() {
   S.stuck   = false;
   S.colliding = false;
   S.flash   = 0;
+  S.redWheelAngle  = 0;
+  S.blueWheelAngle = 0;
   S.initKE  = ke();
   // Snap camera to starting midpoint so there's no pan on first frame
   camX = (S.redX + S.blueX) / 2;
@@ -385,7 +388,7 @@ function drawTrack() {
   });
 }
 
-function drawCar(physX, rgb, label, vel, mass) {
+function drawCar(physX, rgb, label, vel, mass, wheelAngle) {
   const [r, g, b] = rgb;
   const px  = cx(physX);
   const fw  = CAR_WPX;
@@ -441,16 +444,28 @@ function drawCar(physX, rgb, label, vel, mass) {
   ctx.strokeRect(x0 + 10,       wy, ww, wh);
   ctx.strokeRect(x0 + fw - 10 - ww, wy, ww, wh);
 
-  // Wheels (two axles)
-  const wR = 9;
+  // Wheels (two axles) — spokes rotate with wheelAngle
+  const wR = WHEEL_R;
   const wheelY = TRACK_CY + 5;
   [x0 + 18, x0 + fw - 18].forEach(wx => {
+    // Tyre
     ctx.fillStyle = '#1a1a1a';
     ctx.beginPath(); ctx.arc(wx, wheelY, wR, 0, Math.PI*2); ctx.fill();
     ctx.strokeStyle = '#bdbdbd'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(wx, wheelY, wR, 0, Math.PI*2); ctx.stroke();
+    // Spokes
+    ctx.strokeStyle = '#9e9e9e';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) {
+      const a = wheelAngle + (i / 4) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(wx, wheelY);
+      ctx.lineTo(wx + Math.cos(a) * (wR - 1), wheelY + Math.sin(a) * (wR - 1));
+      ctx.stroke();
+    }
+    // Hub
     ctx.fillStyle = '#757575';
-    ctx.beginPath(); ctx.arc(wx, wheelY, 3,  0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(wx, wheelY, 3, 0, Math.PI*2); ctx.fill();
   });
 
   // Mass label on front face — large yellow text centered
@@ -529,11 +544,11 @@ function draw() {
 
   // Draw left car first (painter's order)
   if (S.redX <= S.blueX) {
-    drawCar(S.redX,  RED_RGB,  'RED',  S.redV,  S.redM);
-    drawCar(S.blueX, BLUE_RGB, 'BLUE', S.blueV, S.blueM);
+    drawCar(S.redX,  RED_RGB,  'RED',  S.redV,  S.redM,  S.redWheelAngle);
+    drawCar(S.blueX, BLUE_RGB, 'BLUE', S.blueV, S.blueM, S.blueWheelAngle);
   } else {
-    drawCar(S.blueX, BLUE_RGB, 'BLUE', S.blueV, S.blueM);
-    drawCar(S.redX,  RED_RGB,  'RED',  S.redV,  S.redM);
+    drawCar(S.blueX, BLUE_RGB, 'BLUE', S.blueV, S.blueM, S.blueWheelAngle);
+    drawCar(S.redX,  RED_RGB,  'RED',  S.redV,  S.redM,  S.redWheelAngle);
   }
 
   drawFlash();
@@ -619,15 +634,20 @@ function update(dt) {
 
   updateCam();
 
-  // ── Screen-edge stops ─────────────────────────────────────────
-  // When cars move apart, halt them before they leave the visible frame.
+  // ── Screen-edge position clamp ────────────────────────────────
+  // Cars stay visible but keep their velocity (wheels + label stay live).
   const halfView = CW / (2 * SCALE);
-  const edgeStop = halfView - CAR_WM / 2 - 0.4;   // metres from camX centre
+  const edgeStop = halfView - CAR_WM / 2 - 0.4;
 
-  if (S.redV > 0 && S.redX   > camX + edgeStop) { S.redX  = camX + edgeStop; S.redV  = 0; }
-  if (S.redV < 0 && S.redX   < camX - edgeStop) { S.redX  = camX - edgeStop; S.redV  = 0; }
-  if (S.blueV > 0 && S.blueX > camX + edgeStop) { S.blueX = camX + edgeStop; S.blueV = 0; }
-  if (S.blueV < 0 && S.blueX < camX - edgeStop) { S.blueX = camX - edgeStop; S.blueV = 0; }
+  if (S.redX  > camX + edgeStop) S.redX  = camX + edgeStop;
+  if (S.redX  < camX - edgeStop) S.redX  = camX - edgeStop;
+  if (S.blueX > camX + edgeStop) S.blueX = camX + edgeStop;
+  if (S.blueX < camX - edgeStop) S.blueX = camX - edgeStop;
+
+  // ── Wheel rotation (always advances with velocity) ────────────
+  const WHEEL_R_M = WHEEL_R / SCALE;
+  S.redWheelAngle  += (S.redV  / WHEEL_R_M) * dt;
+  S.blueWheelAngle += (S.blueV / WHEEL_R_M) * dt;
 }
 
 // ── Info panel ──────────────────────────────────────────────────
