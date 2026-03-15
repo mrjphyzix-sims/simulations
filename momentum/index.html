@@ -443,30 +443,17 @@ function drawCar(physX, rgb, label, vel, mass) {
     ctx.beginPath(); ctx.arc(wx, wheelY, 3,  0, Math.PI*2); ctx.fill();
   });
 
-  // Mass label on side face — yellow text rotated to match ISO slant
-  const sideCX = x0 + fw + d / 2;
-  const sideCY = y0 + fh / 2 - d / 2;
-  ctx.save();
-  ctx.translate(sideCX, sideCY);
-  ctx.rotate(-Math.PI / 4);
+  // Mass label on front face — large yellow text centered
   ctx.fillStyle = '#ffeb3b';
-  ctx.font = 'bold 10px sans-serif';
+  ctx.font = 'bold 16px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${mass}kg`, 0, 0);
-  ctx.restore();
+  ctx.fillText(`${mass} kg`, px, y0 + fh / 2 + 10);
 
   // Coupler bumpers (left and right ends)
   ctx.fillStyle = '#424242';
   ctx.fillRect(x0 - 7, TRACK_CY - 13, 7, 9);
   ctx.fillRect(x0 + fw, TRACK_CY - 13, 7, 9);
-
-  // Car label on front face
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, px, y0 + fh - 6);
 
   // ── Velocity label on roof ───────────────────────────────────
   const speed   = Math.abs(vel).toFixed(1);
