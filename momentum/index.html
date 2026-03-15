@@ -262,18 +262,26 @@ const ISO_D     = 22;   // isometric depth (px)
 const TRACK_CY  = 300;  // canvas y of the front rail
 
 // ── Defaults ────────────────────────────────────────────────────
-const DEF = {
-  redM: 10, redV: 0, blueM: 10, blueV: 5,
-  collisionType: 'elastic', popStrength: 8
+const DEF = { redM: 10, blueM: 10, collisionType: 'elastic', popStrength: 8 };
+
+// Per-collision-type velocity & position defaults
+const TYPE_DEFS = {
+  elastic:   { redV:  2, blueV: -2, redX: -5, blueX:  5 },
+  inelastic: { redV:  2, blueV: -2, redX: -5, blueX:  5 },
+  stick:     { redV:  2, blueV:  0, redX: -5, blueX:  0 },
+  pop:       { redV:  0, blueV:  0, redX: null, blueX: null }
 };
+
+function typeDef() { return TYPE_DEFS[S.collisionType]; }
 
 // ── State ───────────────────────────────────────────────────────
 let S = {};   // filled by reset()
 
 function initState() {
   const isPop = S.collisionType === 'pop';
-  S.redX  = isPop ?  -CAR_WM / 2 : -5;
-  S.blueX = isPop ?   CAR_WM / 2 :  5;
+  const td = typeDef();
+  S.redX  = isPop ? -CAR_WM / 2 : td.redX;
+  S.blueX = isPop ?  CAR_WM / 2 : td.blueX;
   S.redV  = isPop ? 0 : parseFloat(document.getElementById('redVelSlider').value);
   S.blueV = isPop ? 0 : parseFloat(document.getElementById('blueVelSlider').value);
   S.running = false;
@@ -672,14 +680,22 @@ function syncPopMode() {
   });
 }
 
+function applyTypeDefaults() {
+  const td = typeDef();
+  if (S.collisionType !== 'pop') {
+    document.getElementById('redVelSlider').value  = td.redV;
+    document.getElementById('blueVelSlider').value = td.blueV;
+    S.redV  = td.redV;
+    S.blueV = td.blueV;
+  }
+}
+
 function fullReset() {
   S.redM  = DEF.redM;
   S.blueM = DEF.blueM;
   S.collisionType = DEF.collisionType;
   S.popStrength   = DEF.popStrength;
 
-  document.getElementById('redVelSlider').value  = DEF.redV;
-  document.getElementById('blueVelSlider').value = DEF.blueV;
   document.getElementById('popSlider').value     = DEF.popStrength;
   document.getElementById('popDisplay').textContent = DEF.popStrength.toFixed(1) + ' m/s';
 
@@ -690,12 +706,11 @@ function fullReset() {
   document.querySelectorAll('.btn-collision').forEach(b =>
     b.classList.toggle('active', b.dataset.type === DEF.collisionType));
 
+  applyTypeDefaults();
   syncPopMode();
   updateVelDisplays();
   setRunning(false);
   camX = 0;
-  S.redV  = DEF.redV;
-  S.blueV = DEF.blueV;
   initState();
 }
 
@@ -729,10 +744,11 @@ document.querySelectorAll('.btn-collision').forEach(btn => {
     S.collisionType = btn.dataset.type;
     document.querySelectorAll('.btn-collision').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    applyTypeDefaults();
     syncPopMode();
+    updateVelDisplays();
     setRunning(false);
     camX = 0;
-    applyVelSlidersToState();
     initState();
   });
 });
@@ -822,10 +838,7 @@ S.redM          = DEF.redM;
 S.blueM         = DEF.blueM;
 S.collisionType = DEF.collisionType;
 S.popStrength   = DEF.popStrength;
-S.redV          = DEF.redV;
-S.blueV         = DEF.blueV;
-document.getElementById('redVelSlider').value  = DEF.redV;
-document.getElementById('blueVelSlider').value = DEF.blueV;
+applyTypeDefaults();   // sets sliders + S.redV/blueV from TYPE_DEFS
 initState();
 updateVelDisplays();
 requestAnimationFrame(loop);
