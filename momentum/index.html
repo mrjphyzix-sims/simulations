@@ -206,9 +206,9 @@ input[type="range"]:disabled   { opacity: 0.35; }
       <button class="btn-mass" data-car="red" data-mass="25">25</button>
     </div>
     <label style="margin-top:9px;" id="redVelLabel">Initial Velocity (m/s)</label>
-    <div class="vel-minmax"><span>← −15</span><span>0</span><span>+15 →</span></div>
-    <input type="range" id="redVelSlider" class="red-range" min="-15" max="15" value="-5" step="0.5">
-    <div class="vel-display red-val" id="redVelDisplay">−5.0 m/s ←</div>
+    <div class="vel-minmax"><span>0</span><span>+15 →</span></div>
+    <input type="range" id="redVelSlider" class="red-range" min="0" max="15" value="0" step="0.5">
+    <div class="vel-display red-val" id="redVelDisplay">0.0 m/s ●</div>
   </div>
 
   <!-- Blue Car -->
@@ -237,8 +237,8 @@ input[type="range"]:disabled   { opacity: 0.35; }
 
   <!-- Info Box -->
   <div class="info-box">
-    <div><span class="lbl">Red  v: </span><span class="vred" id="iRv">−5.00 m/s ←</span></div>
-    <div><span class="lbl">Red  p: </span><span class="vred" id="iRp">−50.00 kg·m/s</span></div>
+    <div><span class="lbl">Red  v: </span><span class="vred" id="iRv">0.00 m/s</span></div>
+    <div><span class="lbl">Red  p: </span><span class="vred" id="iRp">0.00 kg·m/s</span></div>
     <hr class="divider">
     <div><span class="lbl">Blue v: </span><span class="vblu" id="iBv">+5.00 m/s →</span></div>
     <div><span class="lbl">Blue p: </span><span class="vblu" id="iBp">+50.00 kg·m/s</span></div>
@@ -263,7 +263,7 @@ const TRACK_CY  = 300;  // canvas y of the front rail
 
 // ── Defaults ────────────────────────────────────────────────────
 const DEF = {
-  redM: 10, redV: -5, blueM: 10, blueV: 5,
+  redM: 10, redV: 0, blueM: 10, blueV: 5,
   collisionType: 'elastic', popStrength: 8
 };
 
@@ -442,6 +442,19 @@ function drawCar(physX, rgb, label, vel, mass) {
     ctx.fillStyle = '#757575';
     ctx.beginPath(); ctx.arc(wx, wheelY, 3,  0, Math.PI*2); ctx.fill();
   });
+
+  // Mass label on side face — yellow text rotated to match ISO slant
+  const sideCX = x0 + fw + d / 2;
+  const sideCY = y0 + fh / 2 - d / 2;
+  ctx.save();
+  ctx.translate(sideCX, sideCY);
+  ctx.rotate(-Math.PI / 4);
+  ctx.fillStyle = '#ffeb3b';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${mass}kg`, 0, 0);
+  ctx.restore();
 
   // Coupler bumpers (left and right ends)
   ctx.fillStyle = '#424242';
@@ -752,6 +765,71 @@ document.getElementById('popSlider').addEventListener('input', e => {
   document.getElementById('popDisplay').textContent = S.popStrength.toFixed(1) + ' m/s';
 });
 
+// ── Drag to reposition ──────────────────────────────────────────
+let dragCar = null;       // 'red' | 'blue' | null
+let dragPhysOffset = 0;
+
+function carHitTest(mx, my, physX) {
+  const px = cx(physX);
+  const x0 = px - CAR_WPX / 2;
+  return mx >= x0 - 4 && mx <= x0 + CAR_WPX + ISO_D + 4 &&
+         my >= TRACK_CY - CAR_FH - ISO_D - 4 && my <= TRACK_CY + 16;
+}
+
+function physFromCanvas(mx) {
+  return (mx - CW / 2) / SCALE + camX;
+}
+
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  // Test the top car (drawn last) first
+  const [topCar, botCar] = S.redX <= S.blueX
+    ? ['blue', 'red'] : ['red', 'blue'];
+  for (const car of [topCar, botCar]) {
+    if (carHitTest(mx, my, S[car + 'X'])) {
+      dragCar = car;
+      dragPhysOffset = S[car + 'X'] - physFromCanvas(mx);
+      e.preventDefault();
+      break;
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  // Cursor hint
+  const overRed  = carHitTest(mx, my, S.redX);
+  const overBlue = carHitTest(mx, my, S.blueX);
+  canvas.style.cursor = (dragCar || overRed || overBlue) ? 'grab' : 'default';
+  if (dragCar) canvas.style.cursor = 'grabbing';
+
+  if (!dragCar) return;
+
+  const newPhysX = physFromCanvas(mx) + dragPhysOffset;
+
+  if (dragCar === 'red') {
+    S.redX = newPhysX;
+    // Keep red from overlapping blue
+    if (S.blueX - S.redX < CAR_WM) S.redX = S.blueX - CAR_WM;
+    // If dragged apart, allow new collision
+    if (S.blueX - S.redX >= CAR_WM) { S.colliding = false; S.stuck = false; }
+  } else {
+    S.blueX = newPhysX;
+    if (S.blueX - S.redX < CAR_WM) S.blueX = S.redX + CAR_WM;
+    if (S.blueX - S.redX >= CAR_WM) { S.colliding = false; S.stuck = false; }
+  }
+  // Snap camera smoothly toward new midpoint
+  camX += ((S.redX + S.blueX) / 2 - camX) * 0.3;
+});
+
+canvas.addEventListener('mouseup',    () => { dragCar = null; });
+canvas.addEventListener('mouseleave', () => { dragCar = null; });
+
 // ── Boot ────────────────────────────────────────────────────────
 S.redM          = DEF.redM;
 S.blueM         = DEF.blueM;
@@ -759,6 +837,8 @@ S.collisionType = DEF.collisionType;
 S.popStrength   = DEF.popStrength;
 S.redV          = DEF.redV;
 S.blueV         = DEF.blueV;
+document.getElementById('redVelSlider').value  = DEF.redV;
+document.getElementById('blueVelSlider').value = DEF.blueV;
 initState();
 updateVelDisplays();
 requestAnimationFrame(loop);
