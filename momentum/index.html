@@ -237,13 +237,8 @@ input[type="range"]:disabled   { opacity: 0.35; }
   <!-- Info Box -->
   <div class="info-box">
     <div><span class="lbl">Red  v: </span><span class="vred" id="iRv">0.00 m/s</span></div>
-    <div><span class="lbl">Red  p: </span><span class="vred" id="iRp">0.00 kg·m/s</span></div>
     <hr class="divider">
     <div><span class="lbl">Blue v: </span><span class="vblu" id="iBv">+5.00 m/s →</span></div>
-    <div><span class="lbl">Blue p: </span><span class="vblu" id="iBp">+50.00 kg·m/s</span></div>
-    <hr class="divider">
-    <div><span class="lbl">Total p: </span><span class="vwht" id="iTp">0.00 kg·m/s</span></div>
-    <div><span class="lbl">Total KE: </span><span class="vwht" id="iTke">250.00 J</span></div>
   </div>
 </div>
 
@@ -652,18 +647,10 @@ function update(dt) {
 function dirStr(v) { return v > 0.02 ? '→' : v < -0.02 ? '←' : ''; }
 
 function updateInfo() {
-  const rv = S.redV,  rm = S.redM;
-  const bv = S.blueV, bm = S.blueM;
-  const rp = rm * rv, bp = bm * bv;
-  const tp = rp + bp;
-  const tke = 0.5*rm*rv*rv + 0.5*bm*bv*bv;
-
-  document.getElementById('iRv').textContent  = `${rv.toFixed(2)} m/s ${dirStr(rv)}`;
-  document.getElementById('iRp').textContent  = `${rp.toFixed(2)} kg·m/s`;
-  document.getElementById('iBv').textContent  = `${bv.toFixed(2)} m/s ${dirStr(bv)}`;
-  document.getElementById('iBp').textContent  = `${bp.toFixed(2)} kg·m/s`;
-  document.getElementById('iTp').textContent  = `${tp.toFixed(2)} kg·m/s`;
-  document.getElementById('iTke').textContent = `${tke.toFixed(2)} J`;
+  const rv = S.redV;
+  const bv = S.blueV;
+  document.getElementById('iRv').textContent = `${rv.toFixed(2)} m/s ${dirStr(rv)}`;
+  document.getElementById('iBv').textContent = `${bv.toFixed(2)} m/s ${dirStr(bv)}`;
 }
 
 // ── Game loop ───────────────────────────────────────────────────
