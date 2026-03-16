@@ -25,16 +25,6 @@ body {
   position: relative;
 }
 
-#logo {
-  position: absolute;
-  bottom: 22px;
-  left: 50%;
-  transform: translateX(calc(-410px + 18px));
-  width: 360px;
-  opacity: 0.85;
-  pointer-events: none;
-}
-
 canvas {
   border: 2px solid #444;
   border-radius: 8px;
@@ -182,7 +172,6 @@ input[type="range"]:disabled   { opacity: 0.35; }
 
 <div id="sim-container">
   <canvas id="canvas" width="820" height="490"></canvas>
-  <img id="logo" src="../assets/logo.png" alt="Mr.J Phyzix">
 </div>
 
 <div id="controls">
@@ -258,6 +247,9 @@ input[type="range"]:disabled   { opacity: 0.35; }
 const canvas = document.getElementById('canvas');
 const ctx    = canvas.getContext('2d');
 const CW = 820, CH = 490;
+
+const logoImg = new Image();
+logoImg.src = '../assets/logo.png';
 
 // ── Layout constants ─────────────────────────────────────────────
 const SCALE     = 52;   // px per physics metre
@@ -557,6 +549,17 @@ function draw() {
   }
 
   drawFlash();
+
+  // Logo — always bottom-left of canvas, immune to window resize
+  if (logoImg.complete && logoImg.naturalWidth) {
+    const lw = 240;
+    const lh = lw * logoImg.naturalHeight / logoImg.naturalWidth;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(logoImg, 10, CH - lh - 8, lw, lh);
+    ctx.restore();
+  }
+
   updateInfo();
 }
 
