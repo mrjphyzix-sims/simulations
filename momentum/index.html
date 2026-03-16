@@ -474,7 +474,7 @@ function drawCar(physX, rgb, label, vel, mass, wheelAngle) {
   ctx.fillRect(x0 + fw, TRACK_CY - 13, 7, 9);
 
   // ── Velocity label on roof ───────────────────────────────────
-  const speed   = Math.abs(vel).toFixed(1);
+  const speed   = Math.abs(vel).toFixed(2);
   const dirArrow = vel >  0.02 ? '→' : vel < -0.02 ? '←' : '●';
   const velText  = `${speed} m/s ${dirArrow}`;
   const roofX    = px + d / 2;
