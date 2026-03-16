@@ -22,6 +22,16 @@ body {
   align-items: center;
   justify-content: center;
   padding: 16px;
+  position: relative;
+}
+
+#logo {
+  position: absolute;
+  bottom: 20px;
+  left: 24px;
+  width: 90px;
+  opacity: 0.75;
+  pointer-events: none;
 }
 
 canvas {
@@ -171,6 +181,7 @@ input[type="range"]:disabled   { opacity: 0.35; }
 
 <div id="sim-container">
   <canvas id="canvas" width="820" height="490"></canvas>
+  <img id="logo" src="../assets/logo.svg" alt="Mr.J Phyzix">
 </div>
 
 <div id="controls">
