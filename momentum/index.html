@@ -682,6 +682,26 @@ function updateVelDisplays() {
     = `${bv >= 0 ? '+' : ''}${bv.toFixed(1)} m/s ${dirStr(bv)}`;
 }
 
+// If both cars head the same direction (both > 0), blue is always the lead car.
+// Cap its velocity at redV − 0.5 so the chase car always catches it.
+function enforceSameDirConstraint() {
+  if (S.collisionType === 'pop') return;
+  const redSlider  = document.getElementById('redVelSlider');
+  const blueSlider = document.getElementById('blueVelSlider');
+  const redV  = parseFloat(redSlider.value);
+  const blueV = parseFloat(blueSlider.value);
+  if (redV > 0 && blueV > 0) {
+    const cap = Math.max(0, redV - 0.5);
+    blueSlider.max = cap;
+    if (blueV > cap) {
+      blueSlider.value = cap;
+      S.blueV = cap;
+    }
+  } else {
+    blueSlider.max = 15;
+  }
+}
+
 function applyVelSlidersToState() {
   if (S.collisionType !== 'pop') {
     S.redV  = parseFloat(document.getElementById('redVelSlider').value);
@@ -705,6 +725,7 @@ function applyTypeDefaults() {
     S.redV  = td.redV;
     S.blueV = td.blueV;
   }
+  enforceSameDirConstraint();
 }
 
 function fullReset() {
@@ -769,11 +790,13 @@ document.querySelectorAll('.btn-collision').forEach(btn => {
 
 document.getElementById('redVelSlider').addEventListener('input', e => {
   S.redV = parseFloat(e.target.value);
+  enforceSameDirConstraint();
   updateVelDisplays();
 });
 
 document.getElementById('blueVelSlider').addEventListener('input', e => {
   S.blueV = parseFloat(e.target.value);
+  enforceSameDirConstraint();
   updateVelDisplays();
 });
 
