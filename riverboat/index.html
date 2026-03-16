@@ -245,6 +245,9 @@ input[type="range"] {
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
+const logoImg = new Image();
+logoImg.src = '../assets/logo.png';
+
 // DOM refs
 const dirSlider = document.getElementById('dirSlider');
 const boatSpeedSlider = document.getElementById('boatSpeedSlider');
@@ -715,6 +718,16 @@ function draw() {
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('Boat reached the North Bank!', CANVAS_W / 2, CANVAS_H / 2 + 8);
+  }
+
+  // Logo — always bottom-left of canvas, immune to window resize
+  if (logoImg.complete && logoImg.naturalWidth) {
+    const lw = 240;
+    const lh = lw * logoImg.naturalHeight / logoImg.naturalWidth;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(logoImg, 10, CANVAS_H - lh - 8, lw, lh);
+    ctx.restore();
   }
 
   updateInfo();
