@@ -23,11 +23,16 @@ body {
   justify-content: center;
   padding: 16px;
   position: relative;
+  min-width: 0;
 }
 
 canvas {
   border: 2px solid #444;
   border-radius: 8px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  touch-action: none;
 }
 
 #controls {
@@ -40,6 +45,28 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* ── Tablet / portrait layout ── */
+@media (max-width: 900px) {
+  body {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+  #sim-container {
+    padding: 10px;
+    justify-content: flex-start;
+  }
+  #controls {
+    width: 100%;
+    min-width: unset;
+    border-left: none;
+    border-top: 2px solid #333;
+  }
+  .btn { font-size: 1em; padding: 12px 4px; }
+  .btn-mass, .btn-collision { font-size: 0.9em; padding: 8px 2px; }
 }
 
 #controls h2 {
@@ -835,54 +862,77 @@ function physFromCanvas(mx) {
   return (mx - CW / 2) / SCALE + camX;
 }
 
-canvas.addEventListener('mousedown', e => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  // Test the top car (drawn last) first
-  const [topCar, botCar] = S.redX <= S.blueX
-    ? ['blue', 'red'] : ['red', 'blue'];
+// Returns canvas-space coordinates from either a mouse or touch event,
+// accounting for CSS scaling when the canvas is smaller than its internal size.
+function getCanvasPos(e) {
+  const rect   = canvas.getBoundingClientRect();
+  const scaleX = CW / rect.width;
+  const scaleY = CH / rect.height;
+  const src    = e.touches ? e.touches[0] : e;
+  return {
+    mx: (src.clientX - rect.left) * scaleX,
+    my: (src.clientY - rect.top)  * scaleY
+  };
+}
+
+function onDragStart(mx, my) {
+  const [topCar, botCar] = S.redX <= S.blueX ? ['blue', 'red'] : ['red', 'blue'];
   for (const car of [topCar, botCar]) {
     if (carHitTest(mx, my, S[car + 'X'])) {
       dragCar = car;
       dragPhysOffset = S[car + 'X'] - physFromCanvas(mx);
-      e.preventDefault();
       break;
     }
   }
-});
+}
 
-canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-
-  // Cursor hint
-  const overRed  = carHitTest(mx, my, S.redX);
-  const overBlue = carHitTest(mx, my, S.blueX);
-  canvas.style.cursor = (dragCar || overRed || overBlue) ? 'grab' : 'default';
-  if (dragCar) canvas.style.cursor = 'grabbing';
-
+function onDragMove(mx, my) {
   if (!dragCar) return;
-
   const newPhysX = physFromCanvas(mx) + dragPhysOffset;
-
   if (dragCar === 'red') {
     S.redX = newPhysX;
-    // Keep red from overlapping blue
     if (S.blueX - S.redX < CAR_WM) S.redX = S.blueX - CAR_WM;
-    // If dragged apart, allow new collision
     if (S.blueX - S.redX >= CAR_WM) { S.colliding = false; S.stuck = false; }
   } else {
     S.blueX = newPhysX;
     if (S.blueX - S.redX < CAR_WM) S.blueX = S.redX + CAR_WM;
     if (S.blueX - S.redX >= CAR_WM) { S.colliding = false; S.stuck = false; }
   }
-  // Camera is frozen during drag — nothing here
+}
+
+// Mouse
+canvas.addEventListener('mousedown', e => {
+  const {mx, my} = getCanvasPos(e);
+  onDragStart(mx, my);
+  if (dragCar) e.preventDefault();
+});
+
+canvas.addEventListener('mousemove', e => {
+  const {mx, my} = getCanvasPos(e);
+  const overRed  = carHitTest(mx, my, S.redX);
+  const overBlue = carHitTest(mx, my, S.blueX);
+  canvas.style.cursor = dragCar ? 'grabbing' : (overRed || overBlue) ? 'grab' : 'default';
+  onDragMove(mx, my);
 });
 
 canvas.addEventListener('mouseup',    () => { dragCar = null; });
 canvas.addEventListener('mouseleave', () => { dragCar = null; });
+
+// Touch
+canvas.addEventListener('touchstart', e => {
+  const {mx, my} = getCanvasPos(e);
+  onDragStart(mx, my);
+  if (dragCar) e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  const {mx, my} = getCanvasPos(e);
+  onDragMove(mx, my);
+  if (dragCar) e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend',    () => { dragCar = null; });
+canvas.addEventListener('touchcancel', () => { dragCar = null; });
 
 // ── Boot ────────────────────────────────────────────────────────
 S.redM          = DEF.redM;

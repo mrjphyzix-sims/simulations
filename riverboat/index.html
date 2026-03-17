@@ -22,12 +22,16 @@ body {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  min-width: 0;
 }
 
 canvas {
   border: 2px solid #444;
   border-radius: 8px;
   background: #2a5a2a;
+  max-width: 100%;
+  height: auto;
+  display: block;
 }
 
 #controls {
@@ -40,6 +44,28 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* ── Tablet / portrait layout ── */
+@media (max-width: 900px) {
+  body {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+  #sim-container {
+    padding: 10px;
+    justify-content: flex-start;
+  }
+  #controls {
+    width: 100%;
+    min-width: unset;
+    border-left: none;
+    border-top: 2px solid #333;
+  }
+  .btn { font-size: 1em; padding: 12px 4px; }
+  .btn-speed { font-size: 0.9em; padding: 8px 4px; }
 }
 
 #controls h2 {
