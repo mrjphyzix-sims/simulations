@@ -775,6 +775,12 @@ function applyVelSlidersToState() {
 function syncPopMode() {
   const isPop = S.collisionType === 'pop';
   document.getElementById('popGroup').style.display = isPop ? 'block' : 'none';
+  if (isPop) {
+    ['redVelSlider', 'blueVelSlider'].forEach(id => {
+      document.getElementById(id).value = 0;
+    });
+    updateVelDisplays();
+  }
   ['redVelSlider', 'blueVelSlider'].forEach(id => {
     document.getElementById(id).disabled = isPop;
   });
