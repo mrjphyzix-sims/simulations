@@ -124,6 +124,19 @@ canvas {
   margin-bottom: 1px;
 }
 input[type="range"] { width: 100%; margin: 3px 0; }
+.vel-row { display: flex; align-items: center; gap: 4px; }
+.vel-row input[type="range"] { flex: 1; width: auto; }
+.btn-vel {
+  width: 22px; height: 22px; flex-shrink: 0;
+  border: 1px solid #555; border-radius: 4px;
+  background: #1a1a3e; color: #ccc;
+  cursor: pointer; font-size: 1em; font-weight: bold;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.1s, color 0.1s;
+  padding: 0; line-height: 1;
+}
+.btn-vel:hover:not(:disabled) { border-color: #aaa; color: #fff; }
+.btn-vel:disabled { opacity: 0.25; cursor: default; }
 input[type="range"].red-range  { accent-color: #ef5350; }
 input[type="range"].blue-range { accent-color: #42a5f5; }
 input[type="range"].pop-range  { accent-color: #ab47bc; }
@@ -234,7 +247,11 @@ input[type="range"]:disabled   { opacity: 0.35; }
     </div>
     <label style="margin-top:9px;" id="redVelLabel">Initial Velocity (m/s)</label>
     <div class="vel-minmax"><span>0</span><span>+15 →</span></div>
-    <input type="range" id="redVelSlider" class="red-range" min="0" max="15" value="0" step="0.5">
+    <div class="vel-row">
+      <button class="btn-vel" id="redVelDec">‹</button>
+      <input type="range" id="redVelSlider" class="red-range" min="0" max="15" value="0" step="0.5">
+      <button class="btn-vel" id="redVelInc">›</button>
+    </div>
     <div class="vel-display red-val" id="redVelDisplay">0.0 m/s ●</div>
   </div>
 
@@ -251,7 +268,11 @@ input[type="range"]:disabled   { opacity: 0.35; }
     </div>
     <label style="margin-top:9px;" id="blueVelLabel">Initial Velocity (m/s)</label>
     <div class="vel-minmax"><span>← −15</span><span>0</span><span>+15 →</span></div>
-    <input type="range" id="blueVelSlider" class="blue-range" min="-15" max="15" value="5" step="0.5">
+    <div class="vel-row">
+      <button class="btn-vel" id="blueVelDec">‹</button>
+      <input type="range" id="blueVelSlider" class="blue-range" min="-15" max="15" value="5" step="0.5">
+      <button class="btn-vel" id="blueVelInc">›</button>
+    </div>
     <div class="vel-display blue-val" id="blueVelDisplay">+5.0 m/s →</div>
   </div>
 
@@ -757,6 +778,9 @@ function syncPopMode() {
   ['redVelSlider', 'blueVelSlider'].forEach(id => {
     document.getElementById(id).disabled = isPop;
   });
+  ['redVelDec', 'redVelInc', 'blueVelDec', 'blueVelInc'].forEach(id => {
+    document.getElementById(id).disabled = isPop;
+  });
 }
 
 function applyTypeDefaults() {
@@ -841,6 +865,18 @@ document.getElementById('blueVelSlider').addEventListener('input', e => {
   enforceSameDirConstraint();
   updateVelDisplays();
 });
+
+function nudgeSlider(sliderId, delta) {
+  const slider = document.getElementById(sliderId);
+  const val = parseFloat(slider.value);
+  slider.value = Math.min(parseFloat(slider.max), Math.max(parseFloat(slider.min), val + delta));
+  slider.dispatchEvent(new Event('input'));
+}
+
+document.getElementById('redVelDec').addEventListener('click', () => nudgeSlider('redVelSlider', -0.5));
+document.getElementById('redVelInc').addEventListener('click', () => nudgeSlider('redVelSlider', +0.5));
+document.getElementById('blueVelDec').addEventListener('click', () => nudgeSlider('blueVelSlider', -0.5));
+document.getElementById('blueVelInc').addEventListener('click', () => nudgeSlider('blueVelSlider', +0.5));
 
 document.getElementById('popSlider').addEventListener('input', e => {
   S.popStrength = parseFloat(e.target.value);
