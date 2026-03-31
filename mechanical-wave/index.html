@@ -23,7 +23,6 @@ body {
   justify-content: center;
   padding: 16px;
   min-width: 0;
-  position: relative;
 }
 
 #logo {
@@ -153,7 +152,6 @@ canvas {
   color: #000;
 }
 #sendBtn:hover { background: #64b5f6; }
-#sendBtn:disabled { background: #555; color: #888; cursor: not-allowed; }
 
 #resetBtn {
   background: #37474f;
@@ -189,8 +187,8 @@ canvas {
   color: #e0e0e0;
 }
 
-.readout-card .val.spring1 { color: #4fc3f7; }
-.readout-card .val.spring2 { color: #ffb74d; }
+.readout-card .val.left  { color: #4fc3f7; }
+.readout-card .val.right { color: #ffb74d; }
 
 .section-title {
   font-size: 0.75em;
@@ -212,14 +210,14 @@ canvas {
   min-height: 48px;
 }
 
-.spring-label-row {
+.half-label-row {
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
   font-size: 0.78em;
 }
-.spring-label-row span:first-child { color: #4fc3f7; }
-.spring-label-row span:last-child  { color: #ffb74d; }
+.half-label-row span:first-child { color: #4fc3f7; }
+.half-label-row span:last-child  { color: #ffb74d; }
 </style>
 </head>
 <body>
@@ -232,21 +230,21 @@ canvas {
 <div id="controls">
   <h2>Mechanical Wave Simulator</h2>
 
-  <!-- Spring 1 density -->
+  <!-- Left half density -->
   <div class="control-group">
-    <h3>Spring 1 (Left) — Density</h3>
+    <h3>Left Half — Density</h3>
     <div class="density-btns" id="density1Btns">
-      <button class="density-btn" data-val="light" onclick="setDensity(1,'light')">Light</button>
+      <button class="density-btn" data-val="light"  onclick="setDensity(1,'light')">Light</button>
       <button class="density-btn active" data-val="medium" onclick="setDensity(1,'medium')">Medium</button>
-      <button class="density-btn" data-val="heavy" onclick="setDensity(1,'heavy')">Heavy</button>
+      <button class="density-btn" data-val="heavy"  onclick="setDensity(1,'heavy')">Heavy</button>
     </div>
   </div>
 
-  <!-- Spring 2 density -->
+  <!-- Right half density -->
   <div class="control-group">
-    <h3>Spring 2 (Right) — Density</h3>
+    <h3>Right Half — Density</h3>
     <div class="density-btns" id="density2Btns">
-      <button class="density-btn" data-val="light" onclick="setDensity(2,'light')">Light</button>
+      <button class="density-btn" data-val="light"  onclick="setDensity(2,'light')">Light</button>
       <button class="density-btn" data-val="medium" onclick="setDensity(2,'medium')">Medium</button>
       <button class="density-btn active" data-val="heavy" onclick="setDensity(2,'heavy')">Heavy</button>
     </div>
@@ -274,34 +272,34 @@ canvas {
   <!-- Live readouts -->
   <div class="control-group">
     <h3>Live Measurements</h3>
-    <div class="spring-label-row">
-      <span>Spring 1 (left)</span>
-      <span>Spring 2 (right)</span>
+    <div class="half-label-row">
+      <span>Left half</span>
+      <span>Right half</span>
     </div>
     <div class="readout-grid">
       <div class="readout-card">
         <div class="label">Speed</div>
-        <div class="val spring1" id="speed1">—</div>
+        <div class="val left" id="speed1">—</div>
       </div>
       <div class="readout-card">
         <div class="label">Speed</div>
-        <div class="val spring2" id="speed2">—</div>
+        <div class="val right" id="speed2">—</div>
       </div>
       <div class="readout-card">
         <div class="label">Amplitude</div>
-        <div class="val spring1" id="amp1">—</div>
+        <div class="val left" id="amp1">—</div>
       </div>
       <div class="readout-card">
         <div class="label">Amplitude</div>
-        <div class="val spring2" id="amp2">—</div>
+        <div class="val right" id="amp2">—</div>
       </div>
       <div class="readout-card">
         <div class="label">Wavelength</div>
-        <div class="val spring1" id="wl1">—</div>
+        <div class="val left" id="wl1">—</div>
       </div>
       <div class="readout-card">
         <div class="label">Wavelength</div>
-        <div class="val spring2" id="wl2">—</div>
+        <div class="val right" id="wl2">—</div>
       </div>
     </div>
   </div>
@@ -310,301 +308,283 @@ canvas {
   <div class="control-group">
     <h3>What's Happening</h3>
     <div class="insight-box" id="insightBox">
-      Set the density of each spring, then send a pulse to see how the wave changes at the boundary.
+      Set the density of each half, then send a pulse to see how the wave changes at the boundary.
     </div>
   </div>
 </div>
 
 <script>
-// ── Physics constants ──────────────────────────────────────────────
-const DENSITY_MAP = { light: 0.5, medium: 1.0, heavy: 2.5 };
-// Speed ∝ 1/√density (relative units, scaled to pixels/s)
-const BASE_SPEED = 220; // px/s at density=1
+// ── Constants ───────────────────────────────────────────────────────
+const DENSITY_MAP   = { light: 0.5, medium: 1.0, heavy: 2.5 };
+const BASE_SPEED    = 220;   // px/s at density factor 1.0
+const N_CYCLES      = 3;     // length of the pulse in cycles
+const COIL_H        = 15;    // visual coil half-height (px)
+// Approx px between coil peaks at equilibrium (tighter = heavier)
+const COIL_SPACING  = { light: 26, medium: 16, heavy: 10 };
 
-function speedForDensity(d) { return BASE_SPEED / Math.sqrt(DENSITY_MAP[d]); }
-// Amplitude at boundary: transmission coeff T = 2v2/(v1+v2) (intensity: relative)
-function transmittedAmplitude(a1, v1, v2) { return a1 * (2 * v2) / (v1 + v2); }
+const CANVAS_W  = 800;
+const CANVAS_H  = 340;
+const BOUNDARY_X = CANVAS_W / 2;
+const Y_MID      = CANVAS_H / 2;
+const SPRING_X0  = 10;
+const SPRING_X1  = CANVAS_W - 10;
 
-// ── State ──────────────────────────────────────────────────────────
+// ── State ───────────────────────────────────────────────────────────
 let density1 = 'medium', density2 = 'heavy';
 let ampSetting = 45, freqSetting = 2.0;
 
-const CANVAS_W = 800, CANVAS_H = 340;
-const BOUNDARY_X = CANVAS_W / 2;
-const Y_MID = CANVAS_H / 2;
-const SPRING_COIL_H = 28; // half-height of spring visual
-
-// Wave packets: list of active wave objects
-// Each wave: { x (leading edge), region (1|2), speed, amplitude, freq, phase, startX, crossed }
-let waves = [];
-let animId = null;
+let waveT    = null;   // elapsed seconds since this wave was launched
+let running  = false;
+let animId   = null;
 let lastTime = null;
-let running = false;
-let pulseSending = false;
 
-// ── Canvas ─────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const ctx    = canvas.getContext('2d');
 
+// ── Physics helpers ─────────────────────────────────────────────────
+function speedFor(d)  { return BASE_SPEED / Math.sqrt(DENSITY_MAP[d]); }
+function txAmp(a,v1,v2) { return a * (2 * v2) / (v1 + v2); }
 
-// ── Helpers ────────────────────────────────────────────────────────
-function updateSliders() {
-  ampSetting = +document.getElementById('ampSlider').value;
-  freqSetting = +document.getElementById('freqSlider').value;
-  document.getElementById('ampVal').textContent = ampSetting + ' px';
-  document.getElementById('freqVal').textContent = freqSetting.toFixed(1) + ' Hz';
+// Vertical displacement of the spring at pixel x given current waveT
+function waveY(x) {
+  if (waveT === null) return 0;
+
+  const v1 = speedFor(density1);
+  const v2 = speedFor(density2);
+  const f  = freqSetting;
+  const A1 = ampSetting;
+  const A2 = txAmp(A1, v1, v2);
+
+  // Time for front to reach the boundary
+  const tCross = BOUNDARY_X / v1;
+  // Duration the source emits
+  const pDur = N_CYCLES / f;
+
+  // Time when the wave FRONT first reaches position x
+  const tFront = (x <= BOUNDARY_X)
+    ? x / v1
+    : tCross + (x - BOUNDARY_X) / v2;
+
+  // Time when the wave TAIL finally passes position x
+  const tTail = (x <= BOUNDARY_X)
+    ? pDur + x / v1
+    : (pDur + tCross) + (x - BOUNDARY_X) / v2;
+
+  // Outside the pulse window → no displacement
+  if (waveT < tFront || waveT >= tTail) return 0;
+
+  const tPassed    = waveT - tFront;      // time since front arrived
+  const tUntilTail = tTail - waveT;       // time until tail leaves
+
+  const amp = (x <= BOUNDARY_X) ? A1 : A2;
+
+  // Smooth fade-in and fade-out over 0.3 cycles each
+  const fadeTime = 0.3 / f;
+  const env = Math.min(1, tPassed / fadeTime) * Math.min(1, tUntilTail / fadeTime);
+
+  // Frequency is preserved across the boundary; phase counts from when front arrived
+  return -amp * env * Math.sin(2 * Math.PI * f * tPassed);
 }
 
-function setDensity(spring, val) {
-  if (spring === 1) density1 = val;
-  else density2 = val;
-  const id = spring === 1 ? 'density1Btns' : 'density2Btns';
-  document.querySelectorAll('#' + id + ' .density-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.val === val);
-  });
-  if (!running) drawStatic();
+// ── Coil phase ──────────────────────────────────────────────────────
+// Returns a phase (radians) such that sin(phase) gives the coil offset.
+// Each half is normalised so coil nodes land cleanly at the endpoints
+// (phase = integer multiple of 2π at x = SPRING_X0, BOUNDARY_X, SPRING_X1).
+function coilPhase(x) {
+  if (x <= BOUNDARY_X) {
+    const w = BOUNDARY_X - SPRING_X0;
+    const n = Math.max(4, Math.round(w / COIL_SPACING[density1]));
+    return (x - SPRING_X0) / w * n * 2 * Math.PI;
+  } else {
+    const w = SPRING_X1 - BOUNDARY_X;
+    const n = Math.max(4, Math.round(w / COIL_SPACING[density2]));
+    return (x - BOUNDARY_X) / w * n * 2 * Math.PI;
+  }
 }
 
-// ── Drawing ────────────────────────────────────────────────────────
-function drawSpringBackground() {
-  // Spring 1 (left) — blue tint
-  ctx.fillStyle = '#0d1a2e';
+// ── Drawing ─────────────────────────────────────────────────────────
+function drawBackground() {
+  ctx.fillStyle = '#0d0d1a';
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Very subtle zone tints
+  ctx.fillStyle = 'rgba(79, 195, 247, 0.04)';
   ctx.fillRect(0, 0, BOUNDARY_X, CANVAS_H);
-  // Spring 2 (right) — amber tint
-  ctx.fillStyle = '#1a120d';
+  ctx.fillStyle = 'rgba(255, 183, 77, 0.04)';
   ctx.fillRect(BOUNDARY_X, 0, CANVAS_W - BOUNDARY_X, CANVAS_H);
 
-  // Labels
-  ctx.font = 'bold 13px Segoe UI';
-  ctx.fillStyle = '#4fc3f7';
-  ctx.textAlign = 'center';
-  const d1label = density1.charAt(0).toUpperCase() + density1.slice(1);
-  ctx.fillText('Spring 1 — ' + d1label, BOUNDARY_X / 2, 22);
-  ctx.fillStyle = '#ffb74d';
-  const d2label = density2.charAt(0).toUpperCase() + density2.slice(1);
-  ctx.fillText('Spring 2 — ' + d2label, BOUNDARY_X + (CANVAS_W - BOUNDARY_X) / 2, 22);
-
-  // Boundary line
-  ctx.strokeStyle = '#ffffff55';
-  ctx.lineWidth = 2;
+  // Boundary dashed line
+  ctx.strokeStyle = '#ffffff33';
+  ctx.lineWidth = 1.5;
   ctx.setLineDash([6, 4]);
-  ctx.beginPath(); ctx.moveTo(BOUNDARY_X, 30); ctx.lineTo(BOUNDARY_X, CANVAS_H - 10);
+  ctx.beginPath();
+  ctx.moveTo(BOUNDARY_X, 30);
+  ctx.lineTo(BOUNDARY_X, CANVAS_H - 10);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Draw coil pattern for each spring (static decoration) — meet at boundary
-  drawCoils(20, BOUNDARY_X, density1, '#1e3a5a');
-  drawCoils(BOUNDARY_X, CANVAS_W - 20, density2, '#3a2010');
+  // Half labels
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  ctx.font = 'bold 13px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#4fc3f7';
+  ctx.fillText('Left Half — ' + cap(density1), BOUNDARY_X / 2, 22);
+  ctx.fillStyle = '#ffb74d';
+  ctx.fillText('Right Half — ' + cap(density2), BOUNDARY_X + (CANVAS_W - BOUNDARY_X) / 2, 22);
 }
 
-function drawCoils(x1, x2, density, color) {
-  // More coils = heavier (denser = more coils per unit length)
-  const coilsPerPx = { light: 1 / 22, medium: 1 / 14, heavy: 1 / 9 };
-  const cpp = coilsPerPx[density];
-  const width = x2 - x1;
-  const n = Math.max(3, Math.round(width * cpp));
-  const coilW = width / n;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  for (let i = 0; i <= n; i++) {
-    const cx = x1 + i * coilW;
-    const dir = (i % 2 === 0) ? -1 : 1;
-    if (i === 0) ctx.moveTo(cx, Y_MID);
-    else ctx.lineTo(cx, Y_MID + dir * SPRING_COIL_H);
-  }
-  ctx.stroke();
-}
+function drawSpring() {
+  // Gradient: left half blue, right half amber — hard switch at boundary
+  const grad = ctx.createLinearGradient(SPRING_X0, 0, SPRING_X1, 0);
+  const splitL = (BOUNDARY_X - 1) / CANVAS_W;
+  const splitR = (BOUNDARY_X + 1) / CANVAS_W;
+  grad.addColorStop(0,      '#3ab3e8');
+  grad.addColorStop(splitL, '#3ab3e8');
+  grad.addColorStop(splitR, '#e8a030');
+  grad.addColorStop(1,      '#e8a030');
 
-// Draw a wave packet in its region
-// A wave fills from its left anchor to leading edge with a sinusoidal envelope
-function drawWave(wave) {
-  const { startX, x, amplitude, freq, speed, region } = wave;
-  const color = region === 1 ? '#4fc3f7' : '#ffb74d';
-  const wavelength = speed / freq; // px per cycle
-
-  // Determine draw bounds (clipped to region)
-  const clipLeft  = region === 1 ? 0 : BOUNDARY_X;
-  const clipRight = region === 1 ? BOUNDARY_X : CANVAS_W;
-  const drawLeft  = Math.max(startX, clipLeft);
-  const drawRight = Math.min(x, clipRight);
-
-  if (drawRight <= drawLeft) return;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(clipLeft, 0, clipRight - clipLeft, CANVAS_H);
-  ctx.clip();
-
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 8;
-  ctx.beginPath();
-
-  const steps = Math.ceil((drawRight - drawLeft) / 2);
-  for (let s = 0; s <= steps; s++) {
-    const px = drawLeft + s * (drawRight - drawLeft) / steps;
-    // Phase based on distance from leading edge
-    const distFromFront = x - px;
-    const envelope = Math.min(1, distFromFront / (wavelength * 0.5)) *
-                     Math.min(1, (px - startX) / (wavelength * 0.5));
-    const py = Y_MID - amplitude * envelope * Math.sin(2 * Math.PI * distFromFront / wavelength);
-    if (s === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawEquilibriumLine() {
-  // Single continuous line across both springs
-  const grad = ctx.createLinearGradient(20, 0, CANVAS_W - 20, 0);
-  grad.addColorStop(0,   '#3a6a9a');
-  grad.addColorStop(0.5, '#7a8a9a');
-  grad.addColorStop(1,   '#8a6a3a');
   ctx.strokeStyle = grad;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#5ab8e088';
+  ctx.shadowBlur  = 5;
+
   ctx.beginPath();
-  ctx.moveTo(20, Y_MID);
-  ctx.lineTo(CANVAS_W - 20, Y_MID);
+  let first = true;
+  for (let x = SPRING_X0; x <= SPRING_X1; x++) {
+    const y = Y_MID + waveY(x) + COIL_H * Math.sin(coilPhase(x));
+    if (first) { ctx.moveTo(x, y); first = false; }
+    else          ctx.lineTo(x, y);
+  }
   ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawFrame() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  drawBackground();
+  drawSpring();
 }
 
 function drawStatic() {
-  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-  drawSpringBackground();
-  drawEquilibriumLine();
+  drawFrame();
   clearReadouts();
 }
 
+// ── Readouts ────────────────────────────────────────────────────────
 function clearReadouts() {
   ['speed1','speed2','amp1','amp2','wl1','wl2'].forEach(id => {
     document.getElementById(id).textContent = '—';
   });
 }
 
-// ── Simulation loop ────────────────────────────────────────────────
+function updateReadouts() {
+  if (waveT === null) return;
+
+  const v1 = speedFor(density1);
+  const v2 = speedFor(density2);
+  const f  = freqSetting;
+  const A1 = ampSetting;
+  const A2 = txAmp(A1, v1, v2);
+  const tCross = BOUNDARY_X / v1;
+
+  // Left readouts visible as soon as wave starts
+  document.getElementById('speed1').textContent = v1.toFixed(0) + ' u/s';
+  document.getElementById('amp1').textContent   = A1.toFixed(1) + ' px';
+  document.getElementById('wl1').textContent    = (v1 / f).toFixed(1) + ' px';
+
+  // Right readouts appear once the front has crossed
+  if (waveT >= tCross) {
+    document.getElementById('speed2').textContent = v2.toFixed(0) + ' u/s';
+    document.getElementById('amp2').textContent   = A2.toFixed(1) + ' px';
+    document.getElementById('wl2').textContent    = (v2 / f).toFixed(1) + ' px';
+
+    const ratio = v2 / v1;
+    let msg;
+    if (Math.abs(ratio - 1) < 0.05) {
+      msg = 'Same density on both halves — the pulse passes through completely unchanged: same speed, amplitude, and wavelength.';
+    } else if (ratio > 1) {
+      msg = `Right half is lighter → the pulse speeds up (${v2.toFixed(0)} vs ${v1.toFixed(0)} u/s). Wavelength increases proportionally, and amplitude rises because the lighter medium is easier to displace.`;
+    } else {
+      msg = `Right half is heavier → the pulse slows down (${v2.toFixed(0)} vs ${v1.toFixed(0)} u/s). Wavelength decreases proportionally, and amplitude drops because more energy is reflected back at the boundary.`;
+    }
+    document.getElementById('insightBox').textContent = msg;
+  }
+}
+
+// ── Animation loop ──────────────────────────────────────────────────
+function waveDone() {
+  if (waveT === null) return false;
+  const v1 = speedFor(density1);
+  const v2 = speedFor(density2);
+  const f  = freqSetting;
+  const tCross = BOUNDARY_X / v1;
+  const pDur   = N_CYCLES / f;
+  // Time for the tail to exit the right end of the spring
+  const tEnd = (pDur + tCross) + (SPRING_X1 - BOUNDARY_X) / v2;
+  return waveT > tEnd + 0.15;
+}
+
 function animate(timestamp) {
   if (!running) return;
   if (!lastTime) lastTime = timestamp;
   const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
   lastTime = timestamp;
 
-  // Advance each wave
-  for (let w of waves) {
-    w.x += w.speed * dt;
-  }
+  if (waveT !== null) waveT += dt;
 
-  // Spawn transmitted wave when a wave crosses the boundary (only once)
-  for (let w of waves) {
-    if (!w.crossed && w.region === 1 && w.x >= BOUNDARY_X) {
-      w.crossed = true;
-      const v1 = speedForDensity(density1);
-      const v2 = speedForDensity(density2);
-      const tAmp = transmittedAmplitude(w.amplitude, v1, v2);
-      waves.push({
-        x: BOUNDARY_X,
-        startX: BOUNDARY_X,
-        region: 2,
-        speed: v2,
-        amplitude: tAmp,
-        freq: w.freq,
-        crossed: false
-      });
-    }
-  }
-
-  // Remove waves that have left canvas
-  waves = waves.filter(w => w.x < CANVAS_W + 50);
-
-  // Draw
-  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-  drawSpringBackground();
-  drawEquilibriumLine();
-  for (let w of waves) drawWave(w);
-
-  // Update readouts
+  drawFrame();
   updateReadouts();
 
-  // Auto-loop: restart when all waves have left the canvas
-  if (waves.length === 0) {
-    setTimeout(launchWave, 600);
+  if (waveDone()) {
+    waveT = null;
+    clearReadouts();
+    setTimeout(() => { if (running) launchWave(); }, 700);
     return;
   }
 
   animId = requestAnimationFrame(animate);
 }
 
-function updateReadouts() {
-  const w1 = waves.find(w => w.region === 1);
-  const w2 = waves.find(w => w.region === 2);
-
-  if (w1) {
-    const wl1 = w1.speed / w1.freq;
-    document.getElementById('speed1').textContent = (w1.speed).toFixed(0) + ' u/s';
-    document.getElementById('amp1').textContent   = w1.amplitude.toFixed(1) + ' px';
-    document.getElementById('wl1').textContent    = wl1.toFixed(1) + ' px';
-  }
-  if (w2) {
-    const wl2 = w2.speed / w2.freq;
-    document.getElementById('speed2').textContent = (w2.speed).toFixed(0) + ' u/s';
-    document.getElementById('amp2').textContent   = w2.amplitude.toFixed(1) + ' px';
-    document.getElementById('wl2').textContent    = wl2.toFixed(1) + ' px';
-  }
-
-  // Insight
-  if (w2 && w1) {
-    const v1 = w1.speed, v2 = w2.speed;
-    const ratio = v2 / v1;
-    let msg = '';
-    if (Math.abs(ratio - 1) < 0.05) {
-      msg = 'Same density: the wave passes through unchanged — speed, amplitude, and wavelength are all the same.';
-    } else if (ratio > 1) {
-      msg = `Spring 2 is lighter → wave speeds up (${v2.toFixed(0)} vs ${v1.toFixed(0)} u/s). Wavelength increases with speed. Amplitude increases because the lighter medium is easier to displace.`;
-    } else {
-      msg = `Spring 2 is heavier → wave slows down (${v2.toFixed(0)} vs ${v1.toFixed(0)} u/s). Wavelength decreases with speed. Amplitude decreases because more energy is reflected back.`;
-    }
-    document.getElementById('insightBox').textContent = msg;
-  }
+function launchWave() {
+  if (!running) return;
+  waveT    = 0;
+  lastTime = null;
+  document.getElementById('insightBox').textContent = 'Pulse travelling through the spring…';
+  animId = requestAnimationFrame(animate);
 }
 
-// ── Actions ────────────────────────────────────────────────────────
-function launchWave() {
-  if (!running) return; // stopped while waiting for setTimeout
-  lastTime = null;
-  const v1 = speedForDensity(density1);
-  waves = [{
-    x: 40,
-    startX: 20,
-    region: 1,
-    speed: v1,
-    amplitude: ampSetting,
-    freq: freqSetting,
-    crossed: false
-  }];
-  document.getElementById('insightBox').textContent = 'Pulse traveling through Spring 1…';
-  animId = requestAnimationFrame(animate);
+// ── Controls ────────────────────────────────────────────────────────
+function updateSliders() {
+  ampSetting  = +document.getElementById('ampSlider').value;
+  freqSetting = +document.getElementById('freqSlider').value;
+  document.getElementById('ampVal').textContent  = ampSetting + ' px';
+  document.getElementById('freqVal').textContent = freqSetting.toFixed(1) + ' Hz';
+}
+
+function setDensity(half, val) {
+  if (half === 1) density1 = val;
+  else            density2 = val;
+  const id = half === 1 ? 'density1Btns' : 'density2Btns';
+  document.querySelectorAll('#' + id + ' .density-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === val);
+  });
+  if (!running) drawStatic();
 }
 
 function togglePulse() {
   if (running) {
-    // Stop
-    running = false;
-    pulseSending = false;
-    if (animId) cancelAnimationFrame(animId);
-    waves = [];
+    running  = false;
+    waveT    = null;
     lastTime = null;
-    document.getElementById('sendBtn').textContent = 'Send Pulse';
+    if (animId) cancelAnimationFrame(animId);
+    document.getElementById('sendBtn').textContent  = 'Send Pulse';
     document.getElementById('sendBtn').style.background = '#42a5f5';
     document.getElementById('insightBox').textContent =
-      'Set the density of each spring, then send a pulse to see how the wave changes at the boundary.';
+      'Set the density of each half, then send a pulse to see how the wave changes at the boundary.';
     drawStatic();
   } else {
-    // Start
     running = true;
-    pulseSending = true;
-    document.getElementById('sendBtn').textContent = 'Stop';
+    document.getElementById('sendBtn').textContent  = 'Stop';
     document.getElementById('sendBtn').style.background = '#e57373';
     clearReadouts();
     launchWave();
@@ -612,19 +592,18 @@ function togglePulse() {
 }
 
 function resetSim() {
-  running = false;
-  pulseSending = false;
-  if (animId) cancelAnimationFrame(animId);
-  waves = [];
+  running  = false;
+  waveT    = null;
   lastTime = null;
-  document.getElementById('sendBtn').textContent = 'Send Pulse';
+  if (animId) cancelAnimationFrame(animId);
+  document.getElementById('sendBtn').textContent  = 'Send Pulse';
   document.getElementById('sendBtn').style.background = '#42a5f5';
   document.getElementById('insightBox').textContent =
-    'Set the density of each spring, then send a pulse to see how the wave changes at the boundary.';
+    'Set the density of each half, then send a pulse to see how the wave changes at the boundary.';
   drawStatic();
 }
 
-// ── Init ───────────────────────────────────────────────────────────
+// ── Init ────────────────────────────────────────────────────────────
 drawStatic();
 </script>
 </body>
