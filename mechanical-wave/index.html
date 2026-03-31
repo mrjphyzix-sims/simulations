@@ -218,6 +218,29 @@ canvas {
 }
 .half-label-row span:first-child { color: #4fc3f7; }
 .half-label-row span:last-child  { color: #ffb74d; }
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #1a1a3e;
+  border-radius: 8px;
+  border: 1px solid #2a2a5e;
+  cursor: pointer;
+}
+.checkbox-row input[type=checkbox] {
+  width: 16px;
+  height: 16px;
+  accent-color: #64b5f6;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.checkbox-row label {
+  font-size: 0.88em;
+  color: #c0cfe0;
+  cursor: pointer;
+}
 </style>
 </head>
 <body>
@@ -268,6 +291,12 @@ canvas {
   <!-- Buttons -->
   <button class="btn" id="sendBtn" onclick="togglePulse()">Send Pulse</button>
   <button class="btn" id="resetBtn" onclick="resetSim()">Reset</button>
+
+  <!-- Amplitude overlay toggle -->
+  <div class="checkbox-row">
+    <input type="checkbox" id="showAmpChk">
+    <label for="showAmpChk">Show Amplitude</label>
+  </div>
 
   <!-- Live readouts -->
   <div class="control-group">
@@ -459,9 +488,65 @@ function drawSpring() {
   ctx.shadowBlur = 0;
 }
 
+function drawAmplitudeLines() {
+  if (!document.getElementById('showAmpChk').checked) return;
+  if (waveT === null) return;
+
+  const v1 = speedFor(density1);
+  const v2 = speedFor(density2);
+  const tCross = BOUNDARY_X / v1;
+
+  // Blue lines: left-half amplitude — show as soon as wave launches
+  const A1 = ampSetting;
+  ctx.save();
+  ctx.strokeStyle = '#4fc3f7';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([8, 5]);
+  ctx.globalAlpha = 0.7;
+  [Y_MID - A1, Y_MID + A1].forEach(y => {
+    ctx.beginPath();
+    ctx.moveTo(SPRING_X0, y);
+    ctx.lineTo(SPRING_X1, y);
+    ctx.stroke();
+  });
+  // Label
+  ctx.setLineDash([]);
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillStyle = '#4fc3f7';
+  ctx.textAlign = 'left';
+  ctx.fillText('A₁', SPRING_X0 + 4, Y_MID - A1 - 4);
+  ctx.fillText('A₁', SPRING_X0 + 4, Y_MID + A1 + 13);
+  ctx.restore();
+
+  // Orange lines: right-half amplitude — show once front has crossed boundary
+  if (waveT >= tCross) {
+    const A2 = txAmp(A1, v1, v2);
+    ctx.save();
+    ctx.strokeStyle = '#ffb74d';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 5]);
+    ctx.globalAlpha = 0.7;
+    [Y_MID - A2, Y_MID + A2].forEach(y => {
+      ctx.beginPath();
+      ctx.moveTo(SPRING_X0, y);
+      ctx.lineTo(SPRING_X1, y);
+      ctx.stroke();
+    });
+    // Label
+    ctx.setLineDash([]);
+    ctx.font = 'bold 11px Segoe UI';
+    ctx.fillStyle = '#ffb74d';
+    ctx.textAlign = 'right';
+    ctx.fillText('A₂', SPRING_X1 - 4, Y_MID - A2 - 4);
+    ctx.fillText('A₂', SPRING_X1 - 4, Y_MID + A2 + 13);
+    ctx.restore();
+  }
+}
+
 function drawFrame() {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
   drawBackground();
+  drawAmplitudeLines();
   drawSpring();
 }
 
