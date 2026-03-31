@@ -497,7 +497,7 @@ function drawSpring() {
   ctx.beginPath();
   let first = true;
   for (let x = SPRING_X0; x <= SPRING_X1; x++) {
-    const y = Y_MID + waveY(x) + COIL_H * Math.sin(coilPhase(x));
+    const y = Y_MID + waveY(x);
     if (first) { ctx.moveTo(x, y); first = false; }
     else          ctx.lineTo(x, y);
   }
