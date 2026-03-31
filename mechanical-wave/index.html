@@ -147,11 +147,25 @@ canvas {
 }
 .btn:active { transform: scale(0.97); }
 
-#sendBtn {
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+.btn-row .btn { flex: 1; }
+
+#playBtn {
   background: #42a5f5;
   color: #000;
 }
-#sendBtn:hover { background: #64b5f6; }
+#playBtn:hover  { background: #64b5f6; }
+#playBtn.paused { background: #ffa726; color: #000; }
+#playBtn.paused:hover { background: #ffb74d; }
+
+#stopBtn {
+  background: #e57373;
+  color: #000;
+}
+#stopBtn:hover { background: #ef9a9a; }
 
 #resetBtn {
   background: #37474f;
@@ -289,7 +303,10 @@ canvas {
   </div>
 
   <!-- Buttons -->
-  <button class="btn" id="sendBtn" onclick="togglePulse()">Send Pulse</button>
+  <div class="btn-row">
+    <button class="btn" id="playBtn" onclick="togglePlay()">Play</button>
+    <button class="btn" id="stopBtn" onclick="stopSim()">Stop</button>
+  </div>
   <button class="btn" id="resetBtn" onclick="resetSim()">Reset</button>
 
   <!-- Amplitude overlay toggle -->
@@ -653,38 +670,76 @@ function setDensity(half, val) {
   document.querySelectorAll('#' + id + ' .density-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === val);
   });
-  if (!running) drawStatic();
+  if (simState === 'paused') drawFrame();
+  else if (simState === 'idle') drawStatic();
 }
 
-function togglePulse() {
-  if (running) {
-    running  = false;
-    waveT    = null;
-    lastTime = null;
-    if (animId) cancelAnimationFrame(animId);
-    document.getElementById('sendBtn').textContent  = 'Send Pulse';
-    document.getElementById('sendBtn').style.background = '#42a5f5';
-    document.getElementById('insightBox').textContent =
-      'Set the density of each half, then send a pulse to see how the wave changes at the boundary.';
-    drawStatic();
+// simState: 'idle' | 'playing' | 'paused'
+let simState = 'idle';
+
+function setPlayBtn(state) {
+  const btn = document.getElementById('playBtn');
+  if (state === 'playing') {
+    btn.textContent = 'Pause';
+    btn.classList.add('paused');
   } else {
-    running = true;
-    document.getElementById('sendBtn').textContent  = 'Stop';
-    document.getElementById('sendBtn').style.background = '#e57373';
+    btn.textContent = 'Play';
+    btn.classList.remove('paused');
+  }
+}
+
+function togglePlay() {
+  if (simState === 'playing') {
+    // → pause
+    simState = 'paused';
+    running  = false;
+    if (animId) cancelAnimationFrame(animId);
+    setPlayBtn('paused');
+  } else if (simState === 'paused') {
+    // → resume
+    simState = 'playing';
+    running  = true;
+    lastTime = null;
+    setPlayBtn('playing');
+    animId = requestAnimationFrame(animate);
+  } else {
+    // idle → play
+    simState = 'playing';
+    running  = true;
+    setPlayBtn('playing');
     clearReadouts();
     launchWave();
   }
 }
 
-function resetSim() {
+function stopSim() {
+  simState = 'idle';
   running  = false;
   waveT    = null;
   lastTime = null;
   if (animId) cancelAnimationFrame(animId);
-  document.getElementById('sendBtn').textContent  = 'Send Pulse';
-  document.getElementById('sendBtn').style.background = '#42a5f5';
+  setPlayBtn('idle');
+  clearReadouts();
   document.getElementById('insightBox').textContent =
     'Set the density of each half, then send a pulse to see how the wave changes at the boundary.';
+  drawStatic();
+}
+
+function resetSim() {
+  stopSim();
+  // Reset all settings to defaults
+  density1 = 'medium'; density2 = 'heavy';
+  ampSetting = 45; freqSetting = 2.0;
+  document.getElementById('ampSlider').value  = 45;
+  document.getElementById('freqSlider').value = 2.0;
+  document.getElementById('ampVal').textContent  = '45 px';
+  document.getElementById('freqVal').textContent = '2.0 Hz';
+  document.getElementById('showAmpChk').checked = false;
+  [['density1Btns','medium'],['density2Btns','heavy']].forEach(([id, def]) => {
+    document.querySelectorAll('#' + id + ' .density-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.val === def);
+    });
+  });
   drawStatic();
 }
 
