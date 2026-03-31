@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mechanical Wave Simulator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#sim-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-width: 0;
+}
+
+canvas {
+  border: 2px solid #444;
+  border-radius: 8px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  background: #0d0d1a;
+}
+
+#controls {
+  width: 320px;
+  min-width: 320px;
+  background: #16213e;
+  padding: 16px;
+  overflow-y: auto;
+  border-left: 2px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  body { flex-direction: column; height: auto; min-height: 100vh; overflow-y: auto; }
+  #sim-container { padding: 10px; justify-content: flex-start; }
+  #controls { width: 100%; min-width: unset; border-left: none; border-top: 2px solid #333; }
+}
+
+#controls h2 {
+  text-align: center;
+  color: #64b5f6;
+  font-size: 1.1em;
+  margin-bottom: 2px;
+}
+
+.control-group {
+  background: #1a1a3e;
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid #2a2a5e;
+}
+
+.control-group h3 {
+  color: #90caf9;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.slider-row label {
+  font-size: 0.82em;
+  color: #b0b0c0;
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.slider-row input[type=range] {
+  flex: 1;
+  accent-color: #64b5f6;
+  cursor: pointer;
+}
+
+.slider-row span {
+  font-size: 0.82em;
+  color: #e0e0e0;
+  width: 52px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.density-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.density-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: 2px solid #444;
+  border-radius: 6px;
+  background: #1a1a3e;
+  color: #ccc;
+  font-size: 0.78em;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  text-align: center;
+}
+
+.density-btn.active {
+  background: #64b5f6;
+  border-color: #64b5f6;
+  color: #000;
+  font-weight: bold;
+}
+
+.btn {
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn:active { transform: scale(0.97); }
+
+#sendBtn {
+  background: #42a5f5;
+  color: #000;
+}
+#sendBtn:hover { background: #64b5f6; }
+#sendBtn:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+#resetBtn {
+  background: #37474f;
+  color: #cfd8dc;
+}
+#resetBtn:hover { background: #455a64; }
+
+.readout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.readout-card {
+  background: #0d1b2e;
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+  border: 1px solid #2a2a5e;
+}
+
+.readout-card .label {
+  font-size: 0.72em;
+  color: #7986cb;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+
+.readout-card .val {
+  font-size: 1.05em;
+  font-weight: bold;
+  color: #e0e0e0;
+}
+
+.readout-card .val.spring1 { color: #4fc3f7; }
+.readout-card .val.spring2 { color: #ffb74d; }
+
+.section-title {
+  font-size: 0.75em;
+  color: #78909c;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 2px 0 4px;
+  text-align: center;
+}
+
+.insight-box {
+  background: #0d1b2e;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.78em;
+  color: #b0bec5;
+  border-left: 3px solid #64b5f6;
+  line-height: 1.5;
+  min-height: 48px;
+}
+
+.spring-label-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 0.78em;
+}
+.spring-label-row span:first-child { color: #4fc3f7; }
+.spring-label-row span:last-child  { color: #ffb74d; }
+</style>
+</head>
+<body>
+
+<div id="sim-container">
+  <canvas id="canvas" width="800" height="340"></canvas>
+</div>
+
+<div id="controls">
+  <h2>Mechanical Wave Simulator</h2>
+
+  <!-- Spring 1 density -->
+  <div class="control-group">
+    <h3>Spring 1 (Left) — Density</h3>
+    <div class="density-btns" id="density1Btns">
+      <button class="density-btn" data-val="light" onclick="setDensity(1,'light')">Light</button>
+      <button class="density-btn active" data-val="medium" onclick="setDensity(1,'medium')">Medium</button>
+      <button class="density-btn" data-val="heavy" onclick="setDensity(1,'heavy')">Heavy</button>
+    </div>
+  </div>
+
+  <!-- Spring 2 density -->
+  <div class="control-group">
+    <h3>Spring 2 (Right) — Density</h3>
+    <div class="density-btns" id="density2Btns">
+      <button class="density-btn" data-val="light" onclick="setDensity(2,'light')">Light</button>
+      <button class="density-btn" data-val="medium" onclick="setDensity(2,'medium')">Medium</button>
+      <button class="density-btn active" data-val="heavy" onclick="setDensity(2,'heavy')">Heavy</button>
+    </div>
+  </div>
+
+  <!-- Pulse settings -->
+  <div class="control-group">
+    <h3>Pulse Settings</h3>
+    <div class="slider-row">
+      <label>Amplitude</label>
+      <input type="range" id="ampSlider" min="10" max="80" value="45" oninput="updateSliders()">
+      <span id="ampVal">45 px</span>
+    </div>
+    <div class="slider-row">
+      <label>Frequency</label>
+      <input type="range" id="freqSlider" min="1" max="5" value="2" step="0.5" oninput="updateSliders()">
+      <span id="freqVal">2.0 Hz</span>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <button class="btn" id="sendBtn" onclick="sendPulse()">Send Pulse</button>
+  <button class="btn" id="resetBtn" onclick="resetSim()">Reset</button>
+
+  <!-- Live readouts -->
+  <div class="control-group">
+    <h3>Live Measurements</h3>
+    <div class="spring-label-row">
+      <span>Spring 1 (left)</span>
+      <span>Spring 2 (right)</span>
+    </div>
+    <div class="readout-grid">
+      <div class="readout-card">
+        <div class="label">Speed</div>
+        <div class="val spring1" id="speed1">—</div>
+      </div>
+      <div class="readout-card">
+        <div class="label">Speed</div>
+        <div class="val spring2" id="speed2">—</div>
+      </div>
+      <div class="readout-card">
+        <div class="label">Amplitude</div>
+        <div class="val spring1" id="amp1">—</div>
+      </div>
+      <div class="readout-card">
+        <div class="label">Amplitude</div>
+        <div class="val spring2" id="amp2">—</div>
+      </div>
+      <div class="readout-card">
+        <div class="label">Wavelength</div>
+        <div class="val spring1" id="wl1">—</div>
+      </div>
+      <div class="readout-card">
+        <div class="label">Wavelength</div>
+        <div class="val spring2" id="wl2">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Physics insight -->
+  <div class="control-group">
+    <h3>What's Happening</h3>
+    <div class="insight-box" id="insightBox">
+      Set the density of each spring, then send a pulse to see how the wave changes at the boundary.
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Physics constants ──────────────────────────────────────────────
+const DENSITY_MAP = { light: 0.5, medium: 1.0, heavy: 2.5 };
+// Speed ∝ 1/√density (relative units, scaled to pixels/s)
+const BASE_SPEED = 220; // px/s at density=1
+
+function speedForDensity(d) { return BASE_SPEED / Math.sqrt(DENSITY_MAP[d]); }
+// Amplitude at boundary: transmission coeff T = 2v2/(v1+v2) (intensity: relative)
+function transmittedAmplitude(a1, v1, v2) { return a1 * (2 * v2) / (v1 + v2); }
+
+// ── State ──────────────────────────────────────────────────────────
+let density1 = 'medium', density2 = 'heavy';
+let ampSetting = 45, freqSetting = 2.0;
+
+const CANVAS_W = 800, CANVAS_H = 340;
+const BOUNDARY_X = CANVAS_W / 2;
+const Y_MID = CANVAS_H / 2;
+const SPRING_COIL_H = 28; // half-height of spring visual
+
+// Wave packets: list of active wave objects
+// Each wave: { x (leading edge), region (1|2), speed, amplitude, freq, phase, startX, crossed }
+let waves = [];
+let animId = null;
+let lastTime = null;
+let running = false;
+let pulseSending = false;
+
+// ── Canvas ─────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// ── Helpers ────────────────────────────────────────────────────────
+function updateSliders() {
+  ampSetting = +document.getElementById('ampSlider').value;
+  freqSetting = +document.getElementById('freqSlider').value;
+  document.getElementById('ampVal').textContent = ampSetting + ' px';
+  document.getElementById('freqVal').textContent = freqSetting.toFixed(1) + ' Hz';
+}
+
+function setDensity(spring, val) {
+  if (spring === 1) density1 = val;
+  else density2 = val;
+  const id = spring === 1 ? 'density1Btns' : 'density2Btns';
+  document.querySelectorAll('#' + id + ' .density-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === val);
+  });
+  if (!running) drawStatic();
+}
+
+// ── Drawing ────────────────────────────────────────────────────────
+function drawSpringBackground() {
+  // Spring 1 (left) — blue tint
+  ctx.fillStyle = '#0d1a2e';
+  ctx.fillRect(0, 0, BOUNDARY_X, CANVAS_H);
+  // Spring 2 (right) — amber tint
+  ctx.fillStyle = '#1a120d';
+  ctx.fillRect(BOUNDARY_X, 0, CANVAS_W - BOUNDARY_X, CANVAS_H);
+
+  // Labels
+  ctx.font = 'bold 13px Segoe UI';
+  ctx.fillStyle = '#4fc3f7';
+  ctx.textAlign = 'center';
+  const d1label = density1.charAt(0).toUpperCase() + density1.slice(1);
+  ctx.fillText('Spring 1 — ' + d1label, BOUNDARY_X / 2, 22);
+  ctx.fillStyle = '#ffb74d';
+  const d2label = density2.charAt(0).toUpperCase() + density2.slice(1);
+  ctx.fillText('Spring 2 — ' + d2label, BOUNDARY_X + (CANVAS_W - BOUNDARY_X) / 2, 22);
+
+  // Boundary line
+  ctx.strokeStyle = '#ffffff55';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(BOUNDARY_X, 30); ctx.lineTo(BOUNDARY_X, CANVAS_H - 10);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw coil pattern for each spring (static decoration)
+  drawCoils(20, BOUNDARY_X - 20, density1, '#1e3a5a');
+  drawCoils(BOUNDARY_X + 20, CANVAS_W - 20, density2, '#3a2010');
+}
+
+function drawCoils(x1, x2, density, color) {
+  // More coils = heavier (denser = more coils per unit length)
+  const coilsPerPx = { light: 1 / 22, medium: 1 / 14, heavy: 1 / 9 };
+  const cpp = coilsPerPx[density];
+  const width = x2 - x1;
+  const n = Math.max(3, Math.round(width * cpp));
+  const coilW = width / n;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const cx = x1 + i * coilW;
+    const dir = (i % 2 === 0) ? -1 : 1;
+    if (i === 0) ctx.moveTo(cx, Y_MID);
+    else ctx.lineTo(cx, Y_MID + dir * SPRING_COIL_H);
+  }
+  ctx.stroke();
+}
+
+// Draw a wave packet in its region
+// A wave fills from its left anchor to leading edge with a sinusoidal envelope
+function drawWave(wave) {
+  const { startX, x, amplitude, freq, speed, region } = wave;
+  const color = region === 1 ? '#4fc3f7' : '#ffb74d';
+  const wavelength = speed / freq; // px per cycle
+
+  // Determine draw bounds (clipped to region)
+  const clipLeft  = region === 1 ? 0 : BOUNDARY_X;
+  const clipRight = region === 1 ? BOUNDARY_X : CANVAS_W;
+  const drawLeft  = Math.max(startX, clipLeft);
+  const drawRight = Math.min(x, clipRight);
+
+  if (drawRight <= drawLeft) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(clipLeft, 0, clipRight - clipLeft, CANVAS_H);
+  ctx.clip();
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+
+  const steps = Math.ceil((drawRight - drawLeft) / 2);
+  for (let s = 0; s <= steps; s++) {
+    const px = drawLeft + s * (drawRight - drawLeft) / steps;
+    // Phase based on distance from leading edge
+    const distFromFront = x - px;
+    const envelope = Math.min(1, distFromFront / (wavelength * 0.5)) *
+                     Math.min(1, (px - startX) / (wavelength * 0.5));
+    const py = Y_MID - amplitude * envelope * Math.sin(2 * Math.PI * distFromFront / wavelength);
+    if (s === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawStatic() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  drawSpringBackground();
+  // Draw resting equilibrium line
+  ctx.strokeStyle = '#3a5a7a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(20, Y_MID); ctx.lineTo(BOUNDARY_X - 20, Y_MID);
+  ctx.stroke();
+  ctx.strokeStyle = '#5a3a1a';
+  ctx.beginPath();
+  ctx.moveTo(BOUNDARY_X + 20, Y_MID); ctx.lineTo(CANVAS_W - 20, Y_MID);
+  ctx.stroke();
+  clearReadouts();
+}
+
+function clearReadouts() {
+  ['speed1','speed2','amp1','amp2','wl1','wl2'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+}
+
+// ── Simulation loop ────────────────────────────────────────────────
+function animate(timestamp) {
+  if (!running) return;
+  if (!lastTime) lastTime = timestamp;
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+
+  // Advance each wave
+  for (let w of waves) {
+    w.x += w.speed * dt;
+  }
+
+  // Spawn transmitted wave when a wave crosses the boundary (only once)
+  for (let w of waves) {
+    if (!w.crossed && w.region === 1 && w.x >= BOUNDARY_X) {
+      w.crossed = true;
+      const v1 = speedForDensity(density1);
+      const v2 = speedForDensity(density2);
+      const tAmp = transmittedAmplitude(w.amplitude, v1, v2);
+      waves.push({
+        x: BOUNDARY_X,
+        startX: BOUNDARY_X,
+        region: 2,
+        speed: v2,
+        amplitude: tAmp,
+        freq: w.freq,
+        crossed: false
+      });
+    }
+  }
+
+  // Remove waves that have left canvas
+  waves = waves.filter(w => w.x < CANVAS_W + 50);
+
+  // Draw
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  drawSpringBackground();
+  for (let w of waves) drawWave(w);
+
+  // Update readouts
+  updateReadouts();
+
+  // Stop when all waves gone
+  if (waves.length === 0) {
+    running = false;
+    pulseSending = false;
+    document.getElementById('sendBtn').disabled = false;
+    drawStatic();
+    return;
+  }
+
+  animId = requestAnimationFrame(animate);
+}
+
+function updateReadouts() {
+  const w1 = waves.find(w => w.region === 1);
+  const w2 = waves.find(w => w.region === 2);
+
+  if (w1) {
+    const wl1 = w1.speed / w1.freq;
+    document.getElementById('speed1').textContent = (w1.speed).toFixed(0) + ' u/s';
+    document.getElementById('amp1').textContent   = w1.amplitude.toFixed(1) + ' px';
+    document.getElementById('wl1').textContent    = wl1.toFixed(1) + ' px';
+  }
+  if (w2) {
+    const wl2 = w2.speed / w2.freq;
+    document.getElementById('speed2').textContent = (w2.speed).toFixed(0) + ' u/s';
+    document.getElementById('amp2').textContent   = w2.amplitude.toFixed(1) + ' px';
+    document.getElementById('wl2').textContent    = wl2.toFixed(1) + ' px';
+  }
+
+  // Insight
+  if (w2 && w1) {
+    const v1 = w1.speed, v2 = w2.speed;
+    const ratio = v2 / v1;
+    let msg = '';
+    if (Math.abs(ratio - 1) < 0.05) {
+      msg = 'Same density: the wave passes through unchanged — speed, amplitude, and wavelength are all the same.';
+    } else if (ratio > 1) {
+      msg = `Spring 2 is lighter → wave speeds up (${v2.toFixed(0)} vs ${v1.toFixed(0)} u/s). Wavelength increases with speed. Amplitude increases because the lighter medium is easier to displace.`;
+    } else {
+      msg = `Spring 2 is heavier → wave slows down (${v2.toFixed(0)} vs ${v1.toFixed(0)} u/s). Wavelength decreases with speed. Amplitude decreases because more energy is reflected back.`;
+    }
+    document.getElementById('insightBox').textContent = msg;
+  }
+}
+
+// ── Actions ────────────────────────────────────────────────────────
+function sendPulse() {
+  if (pulseSending) return;
+  pulseSending = true;
+  running = true;
+  document.getElementById('sendBtn').disabled = true;
+  lastTime = null;
+
+  const v1 = speedForDensity(density1);
+  waves = [{
+    x: 40,
+    startX: 20,
+    region: 1,
+    speed: v1,
+    amplitude: ampSetting,
+    freq: freqSetting,
+    crossed: false
+  }];
+
+  // Reset readouts
+  clearReadouts();
+  document.getElementById('insightBox').textContent = 'Pulse traveling through Spring 1…';
+
+  animId = requestAnimationFrame(animate);
+}
+
+function resetSim() {
+  running = false;
+  pulseSending = false;
+  if (animId) cancelAnimationFrame(animId);
+  waves = [];
+  lastTime = null;
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('insightBox').textContent =
+    'Set the density of each spring, then send a pulse to see how the wave changes at the boundary.';
+  drawStatic();
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+drawStatic();
+</script>
+</body>
+</html>
