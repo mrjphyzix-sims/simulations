@@ -259,7 +259,7 @@ canvas {
   </div>
 
   <!-- Buttons -->
-  <button class="btn" id="sendBtn" onclick="sendPulse()">Send Pulse</button>
+  <button class="btn" id="sendBtn" onclick="togglePulse()">Send Pulse</button>
   <button class="btn" id="resetBtn" onclick="resetSim()">Reset</button>
 
   <!-- Live readouts -->
@@ -382,9 +382,9 @@ function drawSpringBackground() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Draw coil pattern for each spring (static decoration)
-  drawCoils(20, BOUNDARY_X - 20, density1, '#1e3a5a');
-  drawCoils(BOUNDARY_X + 20, CANVAS_W - 20, density2, '#3a2010');
+  // Draw coil pattern for each spring (static decoration) — meet at boundary
+  drawCoils(20, BOUNDARY_X, density1, '#1e3a5a');
+  drawCoils(BOUNDARY_X, CANVAS_W - 20, density2, '#3a2010');
 }
 
 function drawCoils(x1, x2, density, color) {
@@ -447,19 +447,24 @@ function drawWave(wave) {
   ctx.restore();
 }
 
+function drawEquilibriumLine() {
+  // Single continuous line across both springs
+  const grad = ctx.createLinearGradient(20, 0, CANVAS_W - 20, 0);
+  grad.addColorStop(0,   '#3a6a9a');
+  grad.addColorStop(0.5, '#7a8a9a');
+  grad.addColorStop(1,   '#8a6a3a');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(20, Y_MID);
+  ctx.lineTo(CANVAS_W - 20, Y_MID);
+  ctx.stroke();
+}
+
 function drawStatic() {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
   drawSpringBackground();
-  // Draw resting equilibrium line
-  ctx.strokeStyle = '#3a5a7a';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(20, Y_MID); ctx.lineTo(BOUNDARY_X - 20, Y_MID);
-  ctx.stroke();
-  ctx.strokeStyle = '#5a3a1a';
-  ctx.beginPath();
-  ctx.moveTo(BOUNDARY_X + 20, Y_MID); ctx.lineTo(CANVAS_W - 20, Y_MID);
-  ctx.stroke();
+  drawEquilibriumLine();
   clearReadouts();
 }
 
@@ -506,17 +511,15 @@ function animate(timestamp) {
   // Draw
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
   drawSpringBackground();
+  drawEquilibriumLine();
   for (let w of waves) drawWave(w);
 
   // Update readouts
   updateReadouts();
 
-  // Stop when all waves gone
+  // Auto-loop: restart when all waves have left the canvas
   if (waves.length === 0) {
-    running = false;
-    pulseSending = false;
-    document.getElementById('sendBtn').disabled = false;
-    drawStatic();
+    setTimeout(launchWave, 600);
     return;
   }
 
@@ -557,13 +560,9 @@ function updateReadouts() {
 }
 
 // ── Actions ────────────────────────────────────────────────────────
-function sendPulse() {
-  if (pulseSending) return;
-  pulseSending = true;
-  running = true;
-  document.getElementById('sendBtn').disabled = true;
+function launchWave() {
+  if (!running) return; // stopped while waiting for setTimeout
   lastTime = null;
-
   const v1 = speedForDensity(density1);
   waves = [{
     x: 40,
@@ -574,12 +573,32 @@ function sendPulse() {
     freq: freqSetting,
     crossed: false
   }];
-
-  // Reset readouts
-  clearReadouts();
   document.getElementById('insightBox').textContent = 'Pulse traveling through Spring 1…';
-
   animId = requestAnimationFrame(animate);
+}
+
+function togglePulse() {
+  if (running) {
+    // Stop
+    running = false;
+    pulseSending = false;
+    if (animId) cancelAnimationFrame(animId);
+    waves = [];
+    lastTime = null;
+    document.getElementById('sendBtn').textContent = 'Send Pulse';
+    document.getElementById('sendBtn').style.background = '#42a5f5';
+    document.getElementById('insightBox').textContent =
+      'Set the density of each spring, then send a pulse to see how the wave changes at the boundary.';
+    drawStatic();
+  } else {
+    // Start
+    running = true;
+    pulseSending = true;
+    document.getElementById('sendBtn').textContent = 'Stop';
+    document.getElementById('sendBtn').style.background = '#e57373';
+    clearReadouts();
+    launchWave();
+  }
 }
 
 function resetSim() {
@@ -588,7 +607,8 @@ function resetSim() {
   if (animId) cancelAnimationFrame(animId);
   waves = [];
   lastTime = null;
-  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('sendBtn').textContent = 'Send Pulse';
+  document.getElementById('sendBtn').style.background = '#42a5f5';
   document.getElementById('insightBox').textContent =
     'Set the density of each spring, then send a pulse to see how the wave changes at the boundary.';
   drawStatic();
