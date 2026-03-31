@@ -337,6 +337,20 @@ let pulseSending = false;
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
+const logoImg = new Image();
+logoImg.src = '../assets/logo.png';
+
+function drawLogo() {
+  if (logoImg.complete && logoImg.naturalWidth) {
+    const lw = 240;
+    const lh = lw * logoImg.naturalHeight / logoImg.naturalWidth;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(logoImg, 10, CANVAS_H - lh - 8, lw, lh);
+    ctx.restore();
+  }
+}
+
 // ── Helpers ────────────────────────────────────────────────────────
 function updateSliders() {
   ampSetting = +document.getElementById('ampSlider').value;
@@ -465,6 +479,7 @@ function drawStatic() {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
   drawSpringBackground();
   drawEquilibriumLine();
+  drawLogo();
   clearReadouts();
 }
 
@@ -513,6 +528,7 @@ function animate(timestamp) {
   drawSpringBackground();
   drawEquilibriumLine();
   for (let w of waves) drawWave(w);
+  drawLogo();
 
   // Update readouts
   updateReadouts();
