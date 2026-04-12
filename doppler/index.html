@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doppler Effect Simulator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #0e6b7a;
+  color: #e0e0e0;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#sim-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-width: 0;
+}
+
+#logo {
+  width: 200px;
+  opacity: 0.85;
+  margin-top: 10px;
+  align-self: flex-start;
+}
+
+canvas {
+  border: 2px solid #444;
+  border-radius: 8px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  background: #0d0d1a;
+}
+
+#controls {
+  width: 320px;
+  min-width: 320px;
+  background: #16213e;
+  padding: 16px;
+  overflow-y: auto;
+  border-left: 2px solid #333;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  body { flex-direction: column; height: auto; min-height: 100vh; overflow-y: auto; }
+  #sim-container { padding: 10px; justify-content: flex-start; }
+  #controls { width: 100%; min-width: unset; border-left: none; border-top: 2px solid #333; }
+}
+
+#controls h2 {
+  text-align: center;
+  color: #64b5f6;
+  font-size: 1.1em;
+  margin-bottom: 2px;
+}
+
+.control-group {
+  background: #1a1a3e;
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid #2a2a5e;
+}
+
+.control-group h3 {
+  color: #90caf9;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.density-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.density-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: 2px solid #444;
+  border-radius: 6px;
+  background: #1a1a3e;
+  color: #ccc;
+  font-size: 0.78em;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  text-align: center;
+}
+
+.density-btn.active {
+  background: #64b5f6;
+  border-color: #64b5f6;
+  color: #000;
+  font-weight: bold;
+}
+
+.btn {
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn:active { transform: scale(0.97); }
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+.btn-row .btn { flex: 1; }
+
+#playBtn {
+  background: #42a5f5;
+  color: #000;
+}
+#playBtn:hover { background: #64b5f6; }
+
+#stopBtn {
+  background: #e57373;
+  color: #000;
+}
+#stopBtn:hover { background: #ef9a9a; }
+
+.readout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.readout-card {
+  background: #0d1b2e;
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+  border: 1px solid #2a2a5e;
+}
+
+.readout-card .label {
+  font-size: 0.72em;
+  color: #7986cb;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+
+.readout-card .val {
+  font-size: 1.05em;
+  font-weight: bold;
+  color: #e0e0e0;
+}
+
+.readout-card .val.left  { color: #4fc3f7; }
+.readout-card .val.right { color: #ffb74d; }
+
+.insight-box {
+  background: #0d1b2e;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.78em;
+  color: #b0bec5;
+  border-left: 3px solid #64b5f6;
+  line-height: 1.5;
+  min-height: 48px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #1a1a3e;
+  border-radius: 8px;
+  border: 1px solid #2a2a5e;
+  cursor: pointer;
+}
+.checkbox-row input[type=checkbox] {
+  width: 16px;
+  height: 16px;
+  accent-color: #64b5f6;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.checkbox-row label {
+  font-size: 0.88em;
+  color: #c0cfe0;
+  cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="sim-container">
+  <canvas id="canvas" width="800" height="380"></canvas>
+  <img id="logo" src="../assets/logo.png" alt="logo">
+</div>
+
+<div id="controls">
+  <h2>Doppler Effect Simulator</h2>
+
+  <!-- Observer Position -->
+  <div class="control-group">
+    <h3>Observer Position</h3>
+    <div class="density-btns" id="observerBtns">
+      <button class="density-btn" data-pos="left"   onclick="setObserver('left')">Left</button>
+      <button class="density-btn active" data-pos="middle" onclick="setObserver('middle')">Middle</button>
+      <button class="density-btn" data-pos="right"  onclick="setObserver('right')">Right</button>
+    </div>
+  </div>
+
+  <!-- Ambulance Speed -->
+  <div class="control-group">
+    <h3>Ambulance Speed</h3>
+    <div class="density-btns" id="speedBtns">
+      <button class="density-btn" data-spd="slow"   onclick="setSpeed('slow')">Slow</button>
+      <button class="density-btn active" data-spd="medium" onclick="setSpeed('medium')">Medium</button>
+      <button class="density-btn" data-spd="fast"   onclick="setSpeed('fast')">Fast</button>
+    </div>
+  </div>
+
+  <!-- Play / Stop -->
+  <div class="btn-row">
+    <button class="btn" id="playBtn" onclick="playSim()">Play</button>
+    <button class="btn" id="stopBtn" onclick="stopSim()">Stop</button>
+  </div>
+
+  <!-- Sound toggle -->
+  <div class="checkbox-row">
+    <input type="checkbox" id="soundChk">
+    <label for="soundChk">Sound (enable siren audio)</label>
+  </div>
+
+  <!-- Live Measurements -->
+  <div class="control-group">
+    <h3>Live Measurements</h3>
+    <div class="readout-grid">
+      <div class="readout-card">
+        <div class="label">Source Freq</div>
+        <div class="val left" id="srcFreqVal">—</div>
+      </div>
+      <div class="readout-card">
+        <div class="label">Observed Freq</div>
+        <div class="val right" id="obsFreqVal">—</div>
+      </div>
+      <div class="readout-card">
+        <div class="label">Mach Number</div>
+        <div class="val left" id="machVal">—</div>
+      </div>
+      <div class="readout-card">
+        <div class="label">Pitch Change</div>
+        <div class="val right" id="pitchVal">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- What's Happening -->
+  <div class="control-group">
+    <h3>What's Happening</h3>
+    <div class="insight-box" id="insightBox">
+      Press Play to start. Watch how wave rings bunch up in front of the moving ambulance and spread out behind — this is the Doppler effect.
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────
+const CANVAS_W     = 800;
+const CANVAS_H     = 380;
+const SOUND_SPEED  = 300;   // px/s
+const EMIT_INTERVAL = 0.30; // seconds between wave emissions
+const AMB_W        = 75;    // ambulance body width
+const AMB_H        = 32;    // ambulance body height
+const ROAD_TOP     = 270;
+const ROAD_BOT     = 310;
+
+const SPEED_MAP = { slow: 80, medium: 115, fast: 155 };
+const OBS_X_MAP = { left: 130, middle: 400, right: 670 };
+
+// ── State ─────────────────────────────────────────────────────────────
+let simState     = 'idle';    // 'idle' | 'playing'
+let running      = false;
+let animId       = null;
+let lastTime     = null;
+
+let ambX         = -100;      // x of ambulance left edge
+let ambSpeed     = SPEED_MAP.medium;
+let observerPos  = 'middle';
+let observerX    = OBS_X_MAP.middle;
+
+let waves        = [];        // { cx, cy, r, age }
+let emitTimer    = 0;
+
+let hitTimer     = 0;         // seconds remaining for observer flash
+
+// Audio
+let audioCtx     = null;
+let oscillator   = null;
+let gainNode     = null;
+let sirenPhase   = 0;         // 0 or 1 (which tone)
+let sirenTimer   = 0;
+const SIREN_TONES = [500, 640];
+const SIREN_ALT   = 0.55;     // seconds per tone
+
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function ambCentreX() { return ambX + AMB_W / 2; }
+function ambCentreY() { return ROAD_TOP - AMB_H / 2; }
+
+function dopplerFactor() {
+  const dx = observerX - ambCentreX();
+  if (Math.abs(dx) < 5) return 1;
+  if (dx > 0) return SOUND_SPEED / (SOUND_SPEED - ambSpeed);
+  return SOUND_SPEED / (SOUND_SPEED + ambSpeed);
+}
+
+// ── Audio ─────────────────────────────────────────────────────────────
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+  gainNode  = audioCtx.createGain();
+  gainNode.gain.value = 0;
+  gainNode.connect(audioCtx.destination);
+  oscillator = audioCtx.createOscillator();
+  oscillator.type = 'sine';
+  oscillator.frequency.value = SIREN_TONES[0];
+  oscillator.connect(gainNode);
+  oscillator.start();
+}
+
+function startAudio() {
+  if (!document.getElementById('soundChk').checked) return;
+  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  gainNode.gain.setTargetAtTime(0.25, audioCtx.currentTime, 0.05);
+}
+
+function stopAudio() {
+  if (!gainNode) return;
+  gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+}
+
+function updateAudio(dt) {
+  if (!oscillator || !gainNode) return;
+  if (!document.getElementById('soundChk').checked) return;
+  if (simState !== 'playing') return;
+
+  sirenTimer += dt;
+  if (sirenTimer >= SIREN_ALT) {
+    sirenTimer = 0;
+    sirenPhase = 1 - sirenPhase;
+  }
+
+  const baseTone = SIREN_TONES[sirenPhase];
+  const factor   = dopplerFactor();
+  oscillator.frequency.setTargetAtTime(baseTone * factor, audioCtx.currentTime, 0.05);
+}
+
+// ── Drawing ───────────────────────────────────────────────────────────
+function drawBackground() {
+  // Sky
+  ctx.fillStyle = '#0d0d1a';
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Ground strip (below road)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, ROAD_BOT, CANVAS_W, CANVAS_H - ROAD_BOT);
+
+  // Road
+  ctx.fillStyle = '#383838';
+  ctx.fillRect(0, ROAD_TOP, CANVAS_W, ROAD_BOT - ROAD_TOP);
+
+  // White edge lines
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(0, ROAD_TOP); ctx.lineTo(CANVAS_W, ROAD_TOP);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, ROAD_BOT); ctx.lineTo(CANVAS_W, ROAD_BOT);
+  ctx.stroke();
+
+  // Yellow dashed centre line
+  ctx.strokeStyle = '#f5c518';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([28, 18]);
+  ctx.beginPath();
+  ctx.moveTo(0, 290); ctx.lineTo(CANVAS_W, 290);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Speed-of-sound label
+  ctx.font = '11px Segoe UI';
+  ctx.fillStyle = '#78909c';
+  ctx.textAlign = 'left';
+  ctx.fillText('Sound speed: 300 u/s', 8, 18);
+}
+
+function drawWaves() {
+  for (const w of waves) {
+    const alpha = (1 - w.r / 650) * 0.85;
+    if (alpha <= 0) continue;
+    const colour = `rgba(255, 235, 100, ${alpha})`;
+    ctx.save();
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 2;
+    ctx.shadowBlur  = 8;
+    ctx.shadowColor = colour;
+    ctx.beginPath();
+    ctx.arc(w.cx, w.cy, w.r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawAmbulance() {
+  const bx = ambX;
+  const by = ROAD_TOP - AMB_H - 8; // body top (sits on wheels, wheels touch road)
+
+  // Wheels
+  const wheelY = ROAD_TOP - 8;
+  const wheelPositions = [bx + 14, bx + AMB_W - 14];
+  for (const wx of wheelPositions) {
+    // Tyre
+    ctx.beginPath();
+    ctx.arc(wx, wheelY, 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fill();
+    // Rim
+    ctx.beginPath();
+    ctx.arc(wx, wheelY, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#888';
+    ctx.fill();
+  }
+
+  // Main body
+  ctx.fillStyle = '#dde8ee';
+  ctx.beginPath();
+  ctx.roundRect(bx, by, AMB_W, AMB_H, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#aab8c0';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Red horizontal stripe (middle third)
+  const stripeY = by + AMB_H / 3;
+  const stripeH = AMB_H / 3;
+  ctx.fillStyle = '#e53935';
+  ctx.fillRect(bx, stripeY, AMB_W, stripeH);
+
+  // Red cross on left side (bx+6 to bx+24, centred on body)
+  const crossCX = bx + 15;
+  const crossCY = by + AMB_H / 2;
+  ctx.fillStyle = '#e53935';
+  ctx.fillRect(crossCX - 7, crossCY - 2, 14, 4); // horizontal bar
+  ctx.fillRect(crossCX - 2, crossCY - 7, 4, 14); // vertical bar
+  // White outline for cross visibility
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(crossCX - 7, crossCY - 2, 14, 4);
+  ctx.strokeRect(crossCX - 2, crossCY - 7, 4, 14);
+
+  // Blue windows (cab area — right side)
+  ctx.fillStyle = '#4fc3f7';
+  ctx.fillRect(bx + AMB_W - 22, by + 5, 14, 12);
+  ctx.fillRect(bx + AMB_W - 36, by + 5, 10, 12);
+
+  // Window borders
+  ctx.strokeStyle = '#1e88e5';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx + AMB_W - 22, by + 5, 14, 12);
+  ctx.strokeRect(bx + AMB_W - 36, by + 5, 10, 12);
+
+  // Roof lights (alternating red/blue every ~220ms)
+  const flash = Math.floor(Date.now() / 220) % 2;
+  const light1 = flash === 0 ? '#ff1744' : '#2979ff';
+  const light2 = flash === 0 ? '#2979ff' : '#ff1744';
+  // Left roof light
+  ctx.fillStyle = light1;
+  ctx.fillRect(bx + 18, by - 7, 14, 7);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx + 18, by - 7, 14, 7);
+  // Right roof light
+  ctx.fillStyle = light2;
+  ctx.fillRect(bx + 36, by - 7, 14, 7);
+  ctx.strokeStyle = '#333';
+  ctx.strokeRect(bx + 36, by - 7, 14, 7);
+
+  // Glow on active lights
+  ctx.save();
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = light1;
+  ctx.fillStyle = light1 + '44';
+  ctx.fillRect(bx + 18, by - 7, 14, 7);
+  ctx.shadowColor = light2;
+  ctx.fillStyle = light2 + '44';
+  ctx.fillRect(bx + 36, by - 7, 14, 7);
+  ctx.restore();
+}
+
+function drawObserver() {
+  const ox = observerX;
+  const oy = ROAD_TOP; // feet at road surface
+
+  const isHit = hitTimer > 0;
+  const colour = isHit ? '#ffffff' : '#81c784';
+
+  // Shadow/glow when hit
+  ctx.save();
+  if (isHit) {
+    ctx.shadowBlur  = 18;
+    ctx.shadowColor = '#ffffff';
+  }
+
+  ctx.strokeStyle = colour;
+  ctx.fillStyle   = colour;
+  ctx.lineWidth   = 2;
+
+  // Head
+  ctx.beginPath();
+  ctx.arc(ox, oy - 42, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.beginPath();
+  ctx.moveTo(ox, oy - 35);
+  ctx.lineTo(ox, oy - 18);
+  ctx.stroke();
+
+  // Arms
+  ctx.beginPath();
+  ctx.moveTo(ox - 10, oy - 28);
+  ctx.lineTo(ox + 10, oy - 28);
+  ctx.stroke();
+
+  // Legs
+  ctx.beginPath();
+  ctx.moveTo(ox, oy - 18);
+  ctx.lineTo(ox - 8, oy);
+  ctx.moveTo(ox, oy - 18);
+  ctx.lineTo(ox + 8, oy);
+  ctx.stroke();
+
+  ctx.restore();
+
+  // "Observer" label above head
+  ctx.font = 'bold 11px Segoe UI';
+  ctx.fillStyle = isHit ? '#ffffff' : '#81c784';
+  ctx.textAlign = 'center';
+  ctx.fillText('Observer', ox, oy - 56);
+
+  // Approaching / Receding label
+  if (simState === 'playing') {
+    const dx = observerX - ambCentreX();
+    ctx.font = 'bold 11px Segoe UI';
+    ctx.textAlign = 'center';
+    if (Math.abs(dx) <= 40) {
+      // passing — no extra label (handled by insight)
+    } else if (dx > 0) {
+      ctx.fillStyle = '#4fc3f7';
+      ctx.fillText('→ Approaching', ox, oy - 70);
+    } else {
+      ctx.fillStyle = '#ffb74d';
+      ctx.fillText('Receding →', ox, oy - 70);
+    }
+  }
+}
+
+function drawFrame() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  drawBackground();
+  drawWaves();
+  drawAmbulance();
+  drawObserver();
+}
+
+function drawStatic() {
+  ambX = -100;
+  waves = [];
+  drawFrame();
+  clearReadouts();
+}
+
+// ── Readouts ───────────────────────────────────────────────────────────
+function clearReadouts() {
+  document.getElementById('srcFreqVal').textContent = '—';
+  document.getElementById('obsFreqVal').textContent = '—';
+  document.getElementById('machVal').textContent    = '—';
+  document.getElementById('pitchVal').textContent   = '—';
+  const pv = document.getElementById('pitchVal');
+  pv.style.color = '#e0e0e0';
+}
+
+function updateReadouts() {
+  if (simState !== 'playing') return;
+
+  const fSrc    = 1 / EMIT_INTERVAL;
+  const factor  = dopplerFactor();
+  const fObs    = fSrc * factor;
+  const mach    = (ambSpeed / SOUND_SPEED).toFixed(2);
+  const pctChange = ((factor - 1) * 100);
+
+  document.getElementById('srcFreqVal').textContent = fSrc.toFixed(1) + ' Hz';
+  document.getElementById('obsFreqVal').textContent = fObs.toFixed(1) + ' Hz';
+  document.getElementById('machVal').textContent    = mach;
+
+  const pv = document.getElementById('pitchVal');
+  const dx = observerX - ambCentreX();
+  if (Math.abs(dx) < 5) {
+    pv.textContent  = '—';
+    pv.style.color  = '#e0e0e0';
+  } else if (dx > 0) {
+    pv.textContent  = '+' + Math.abs(pctChange).toFixed(0) + '%';
+    pv.style.color  = '#81c784';
+  } else {
+    pv.textContent  = '−' + Math.abs(pctChange).toFixed(0) + '%';
+    pv.style.color  = '#ffb74d';
+  }
+}
+
+function updateInsight() {
+  const box = document.getElementById('insightBox');
+  if (simState !== 'playing') {
+    box.textContent = 'Press Play to start. Watch how wave rings bunch up in front of the moving ambulance and spread out behind — this is the Doppler effect.';
+    return;
+  }
+  const dx = observerX - ambCentreX();
+  if (Math.abs(dx) <= 40) {
+    box.textContent = 'The ambulance is passing the observer right now! The pitch shifts instantly from high to low.';
+  } else if (dx > 0) {
+    box.textContent = 'The ambulance is moving toward the observer. Sound waves are compressed — the observer hears a HIGHER pitch than the actual siren.';
+  } else {
+    box.textContent = 'The ambulance has passed and is moving away. Sound waves are stretched — the observer hears a LOWER pitch.';
+  }
+}
+
+// ── Hit detection ──────────────────────────────────────────────────────
+function checkHits(dt) {
+  if (hitTimer > 0) {
+    hitTimer = Math.max(0, hitTimer - dt);
+  }
+  for (const w of waves) {
+    const distToObs = Math.abs(observerX - w.cx);
+    if (Math.abs(w.r - distToObs) < 8) {
+      hitTimer = 0.2;
+    }
+  }
+}
+
+// ── Animation loop ────────────────────────────────────────────────────
+function animate(timestamp) {
+  if (!running) return;
+  if (!lastTime) lastTime = timestamp;
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+
+  // Move ambulance
+  ambX += ambSpeed * dt;
+
+  // Loop: when off right edge, reset
+  if (ambX > CANVAS_W + 100) {
+    ambX  = -100;
+    waves = [];
+    emitTimer = 0;
+  }
+
+  // Emit waves while on canvas
+  const cx = ambCentreX();
+  const cy = ambCentreY();
+  const onCanvas = ambX > -AMB_W && ambX < CANVAS_W;
+  if (onCanvas) {
+    emitTimer += dt;
+    if (emitTimer >= EMIT_INTERVAL) {
+      emitTimer -= EMIT_INTERVAL;
+      waves.push({ cx, cy, r: 0 });
+    }
+  }
+
+  // Grow waves
+  for (const w of waves) {
+    w.r += SOUND_SPEED * dt;
+  }
+  // Remove expired waves
+  waves = waves.filter(w => w.r < 650);
+
+  // Hit check
+  checkHits(dt);
+
+  // Siren audio
+  updateAudio(dt);
+
+  drawFrame();
+  updateReadouts();
+  updateInsight();
+
+  animId = requestAnimationFrame(animate);
+}
+
+// ── Controls ───────────────────────────────────────────────────────────
+function setObserver(pos) {
+  observerPos = pos;
+  observerX   = OBS_X_MAP[pos];
+  document.querySelectorAll('#observerBtns .density-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.pos === pos);
+  });
+  if (simState === 'idle') drawStatic();
+}
+
+function setSpeed(spd) {
+  ambSpeed = SPEED_MAP[spd];
+  document.querySelectorAll('#speedBtns .density-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.spd === spd);
+  });
+}
+
+function playSim() {
+  if (simState === 'playing') return;
+  simState  = 'playing';
+  running   = true;
+  ambX      = -100;
+  waves     = [];
+  emitTimer = 0;
+  hitTimer  = 0;
+  sirenTimer = 0;
+  lastTime  = null;
+  startAudio();
+  animId    = requestAnimationFrame(animate);
+}
+
+function stopSim() {
+  simState  = 'idle';
+  running   = false;
+  if (animId) cancelAnimationFrame(animId);
+  ambX    = -100;
+  waves   = [];
+  emitTimer = 0;
+  hitTimer  = 0;
+  lastTime  = null;
+  stopAudio();
+  clearReadouts();
+  document.getElementById('insightBox').textContent =
+    'Press Play to start. Watch how wave rings bunch up in front of the moving ambulance and spread out behind — this is the Doppler effect.';
+  drawStatic();
+}
+
+// ── Sound checkbox ─────────────────────────────────────────────────────
+document.getElementById('soundChk').addEventListener('change', function() {
+  if (!this.checked && gainNode) {
+    stopAudio();
+  } else if (this.checked && simState === 'playing') {
+    startAudio();
+  }
+});
+
+// ── Init ───────────────────────────────────────────────────────────────
+drawStatic();
+</script>
+</body>
+</html>
