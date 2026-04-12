@@ -131,6 +131,12 @@ canvas {
 }
 #playBtn:hover { background: #64b5f6; }
 
+#pauseBtn {
+  background: #ffa726;
+  color: #000;
+}
+#pauseBtn:hover { background: #ffb74d; }
+
 #stopBtn {
   background: #e57373;
   color: #000;
@@ -233,9 +239,10 @@ canvas {
     </div>
   </div>
 
-  <!-- Play / Stop -->
+  <!-- Play / Pause / Stop -->
   <div class="btn-row">
     <button class="btn" id="playBtn" onclick="playSim()">Play</button>
+    <button class="btn" id="pauseBtn" onclick="pauseSim()">Pause</button>
     <button class="btn" id="stopBtn" onclick="stopSim()">Stop</button>
   </div>
 
@@ -289,20 +296,21 @@ const ROAD_TOP     = 270;
 const ROAD_BOT     = 310;
 
 const SPEED_MAP = { slow: 80, medium: 115, fast: 155 };
-const OBS_X_MAP = { left: 130, middle: 400, right: 670 };
+const OBS_X_MAP = { left: 50, middle: 400, right: 700 };
 
 // ── State ─────────────────────────────────────────────────────────────
-let simState     = 'idle';    // 'idle' | 'playing'
+let simState     = 'idle';    // 'idle' | 'playing' | 'paused'
 let running      = false;
 let animId       = null;
 let lastTime     = null;
 
 let ambX         = -100;      // x of ambulance left edge
 let ambSpeed     = SPEED_MAP.medium;
+let ambMoving    = false;     // true only while ambulance is advancing
 let observerPos  = 'middle';
 let observerX    = OBS_X_MAP.middle;
 
-let waves        = [];        // { cx, cy, r, age }
+let waves        = [];        // { cx, cy, r }
 let emitTimer    = 0;
 
 let hitTimer     = 0;         // seconds remaining for observer flash
@@ -313,6 +321,7 @@ let oscillator   = null;
 let gainNode     = null;
 let sirenPhase   = 0;         // 0 or 1 (which tone)
 let sirenTimer   = 0;
+let audioLoopId  = null;      // setInterval id for independent siren
 const SIREN_TONES = [500, 640];
 const SIREN_ALT   = 0.55;     // seconds per tone
 
@@ -323,14 +332,20 @@ const ctx    = canvas.getContext('2d');
 function ambCentreX() { return ambX + AMB_W / 2; }
 function ambCentreY() { return ROAD_TOP - AMB_H / 2; }
 
+// Where the ambulance starts depends on observer position
+function getStartX() {
+  return (observerPos === 'left') ? observerX : -100;
+}
+
 function dopplerFactor() {
+  if (!ambMoving) return 1;
   const dx = observerX - ambCentreX();
   if (Math.abs(dx) < 5) return 1;
   if (dx > 0) return SOUND_SPEED / (SOUND_SPEED - ambSpeed);
   return SOUND_SPEED / (SOUND_SPEED + ambSpeed);
 }
 
-// ── Audio ─────────────────────────────────────────────────────────────
+// ── Audio (independent of sim state) ─────────────────────────────────
 function initAudio() {
   if (audioCtx) return;
   audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
@@ -344,49 +359,41 @@ function initAudio() {
   oscillator.start();
 }
 
-function startAudio() {
-  if (!document.getElementById('soundChk').checked) return;
+// Independent siren loop — runs via setInterval whenever sound is on
+function startSirenLoop() {
+  if (audioLoopId) return;
   initAudio();
   if (audioCtx.state === 'suspended') audioCtx.resume();
   gainNode.gain.setTargetAtTime(0.25, audioCtx.currentTime, 0.05);
+  audioLoopId = setInterval(function() {
+    if (!oscillator) return;
+    sirenTimer += 0.04;
+    if (sirenTimer >= SIREN_ALT) {
+      sirenTimer -= SIREN_ALT;
+      sirenPhase = 1 - sirenPhase;
+    }
+    const baseTone = SIREN_TONES[sirenPhase];
+    const factor   = dopplerFactor();
+    oscillator.frequency.setTargetAtTime(baseTone * factor, audioCtx.currentTime, 0.04);
+  }, 40);
 }
 
-function stopAudio() {
-  if (!gainNode) return;
-  gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
-}
-
-function updateAudio(dt) {
-  if (!oscillator || !gainNode) return;
-  if (!document.getElementById('soundChk').checked) return;
-  if (simState !== 'playing') return;
-
-  sirenTimer += dt;
-  if (sirenTimer >= SIREN_ALT) {
-    sirenTimer = 0;
-    sirenPhase = 1 - sirenPhase;
-  }
-
-  const baseTone = SIREN_TONES[sirenPhase];
-  const factor   = dopplerFactor();
-  oscillator.frequency.setTargetAtTime(baseTone * factor, audioCtx.currentTime, 0.05);
+function stopSirenLoop() {
+  if (gainNode) gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+  if (audioLoopId) { clearInterval(audioLoopId); audioLoopId = null; }
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────
 function drawBackground() {
-  // Sky
   ctx.fillStyle = '#0d0d1a';
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-  // Ground strip (below road)
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(0, ROAD_BOT, CANVAS_W, CANVAS_H - ROAD_BOT);
 
-  // Road
   ctx.fillStyle = '#383838';
   ctx.fillRect(0, ROAD_TOP, CANVAS_W, ROAD_BOT - ROAD_TOP);
 
-  // White edge lines
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 2;
   ctx.setLineDash([]);
@@ -397,7 +404,6 @@ function drawBackground() {
   ctx.moveTo(0, ROAD_BOT); ctx.lineTo(CANVAS_W, ROAD_BOT);
   ctx.stroke();
 
-  // Yellow dashed centre line
   ctx.strokeStyle = '#f5c518';
   ctx.lineWidth = 2;
   ctx.setLineDash([28, 18]);
@@ -406,7 +412,6 @@ function drawBackground() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Speed-of-sound label
   ctx.font = '11px Segoe UI';
   ctx.fillStyle = '#78909c';
   ctx.textAlign = 'left';
@@ -432,25 +437,21 @@ function drawWaves() {
 
 function drawAmbulance() {
   const bx = ambX;
-  const by = ROAD_TOP - AMB_H - 8; // body top (sits on wheels, wheels touch road)
+  const by = ROAD_TOP - AMB_H - 8;
 
-  // Wheels
   const wheelY = ROAD_TOP - 8;
   const wheelPositions = [bx + 14, bx + AMB_W - 14];
   for (const wx of wheelPositions) {
-    // Tyre
     ctx.beginPath();
     ctx.arc(wx, wheelY, 8, 0, Math.PI * 2);
     ctx.fillStyle = '#2a2a2a';
     ctx.fill();
-    // Rim
     ctx.beginPath();
     ctx.arc(wx, wheelY, 4.5, 0, Math.PI * 2);
     ctx.fillStyle = '#888';
     ctx.fill();
   }
 
-  // Main body
   ctx.fillStyle = '#dde8ee';
   ctx.beginPath();
   ctx.roundRect(bx, by, AMB_W, AMB_H, 4);
@@ -459,52 +460,42 @@ function drawAmbulance() {
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Red horizontal stripe (middle third)
   const stripeY = by + AMB_H / 3;
   const stripeH = AMB_H / 3;
   ctx.fillStyle = '#e53935';
   ctx.fillRect(bx, stripeY, AMB_W, stripeH);
 
-  // Red cross on left side (bx+6 to bx+24, centred on body)
   const crossCX = bx + 15;
   const crossCY = by + AMB_H / 2;
   ctx.fillStyle = '#e53935';
-  ctx.fillRect(crossCX - 7, crossCY - 2, 14, 4); // horizontal bar
-  ctx.fillRect(crossCX - 2, crossCY - 7, 4, 14); // vertical bar
-  // White outline for cross visibility
+  ctx.fillRect(crossCX - 7, crossCY - 2, 14, 4);
+  ctx.fillRect(crossCX - 2, crossCY - 7, 4, 14);
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 0.5;
   ctx.strokeRect(crossCX - 7, crossCY - 2, 14, 4);
   ctx.strokeRect(crossCX - 2, crossCY - 7, 4, 14);
 
-  // Blue windows (cab area — right side)
   ctx.fillStyle = '#4fc3f7';
   ctx.fillRect(bx + AMB_W - 22, by + 5, 14, 12);
   ctx.fillRect(bx + AMB_W - 36, by + 5, 10, 12);
-
-  // Window borders
   ctx.strokeStyle = '#1e88e5';
   ctx.lineWidth = 1;
   ctx.strokeRect(bx + AMB_W - 22, by + 5, 14, 12);
   ctx.strokeRect(bx + AMB_W - 36, by + 5, 10, 12);
 
-  // Roof lights (alternating red/blue every ~220ms)
   const flash = Math.floor(Date.now() / 220) % 2;
   const light1 = flash === 0 ? '#ff1744' : '#2979ff';
   const light2 = flash === 0 ? '#2979ff' : '#ff1744';
-  // Left roof light
   ctx.fillStyle = light1;
   ctx.fillRect(bx + 18, by - 7, 14, 7);
   ctx.strokeStyle = '#333';
   ctx.lineWidth = 1;
   ctx.strokeRect(bx + 18, by - 7, 14, 7);
-  // Right roof light
   ctx.fillStyle = light2;
   ctx.fillRect(bx + 36, by - 7, 14, 7);
   ctx.strokeStyle = '#333';
   ctx.strokeRect(bx + 36, by - 7, 14, 7);
 
-  // Glow on active lights
   ctx.save();
   ctx.shadowBlur = 12;
   ctx.shadowColor = light1;
@@ -518,12 +509,11 @@ function drawAmbulance() {
 
 function drawObserver() {
   const ox = observerX;
-  const oy = ROAD_TOP; // feet at road surface
+  const oy = ROAD_TOP;
 
   const isHit = hitTimer > 0;
   const colour = isHit ? '#ffffff' : '#81c784';
 
-  // Shadow/glow when hit
   ctx.save();
   if (isHit) {
     ctx.shadowBlur  = 18;
@@ -534,24 +524,20 @@ function drawObserver() {
   ctx.fillStyle   = colour;
   ctx.lineWidth   = 2;
 
-  // Head
   ctx.beginPath();
   ctx.arc(ox, oy - 42, 7, 0, Math.PI * 2);
   ctx.fill();
 
-  // Body
   ctx.beginPath();
   ctx.moveTo(ox, oy - 35);
   ctx.lineTo(ox, oy - 18);
   ctx.stroke();
 
-  // Arms
   ctx.beginPath();
   ctx.moveTo(ox - 10, oy - 28);
   ctx.lineTo(ox + 10, oy - 28);
   ctx.stroke();
 
-  // Legs
   ctx.beginPath();
   ctx.moveTo(ox, oy - 18);
   ctx.lineTo(ox - 8, oy);
@@ -561,25 +547,24 @@ function drawObserver() {
 
   ctx.restore();
 
-  // "Observer" label above head
   ctx.font = 'bold 11px Segoe UI';
   ctx.fillStyle = isHit ? '#ffffff' : '#81c784';
   ctx.textAlign = 'center';
   ctx.fillText('Observer', ox, oy - 56);
 
-  // Approaching / Receding label
-  if (simState === 'playing') {
+  // Approaching / Receding label (show while playing or paused with waves)
+  if (simState === 'playing' || simState === 'paused') {
     const dx = observerX - ambCentreX();
     ctx.font = 'bold 11px Segoe UI';
     ctx.textAlign = 'center';
     if (Math.abs(dx) <= 40) {
-      // passing — no extra label (handled by insight)
+      // passing
     } else if (dx > 0) {
       ctx.fillStyle = '#4fc3f7';
-      ctx.fillText('→ Approaching', ox, oy - 70);
+      ctx.fillText('\u2192 Approaching', ox, oy - 70);
     } else {
       ctx.fillStyle = '#ffb74d';
-      ctx.fillText('Receding →', ox, oy - 70);
+      ctx.fillText('Receding \u2192', ox, oy - 70);
     }
   }
 }
@@ -593,7 +578,7 @@ function drawFrame() {
 }
 
 function drawStatic() {
-  ambX = -100;
+  ambX = getStartX();
   waves = [];
   drawFrame();
   clearReadouts();
@@ -605,13 +590,10 @@ function clearReadouts() {
   document.getElementById('obsFreqVal').textContent = '—';
   document.getElementById('machVal').textContent    = '—';
   document.getElementById('pitchVal').textContent   = '—';
-  const pv = document.getElementById('pitchVal');
-  pv.style.color = '#e0e0e0';
+  document.getElementById('pitchVal').style.color   = '#e0e0e0';
 }
 
 function updateReadouts() {
-  if (simState !== 'playing') return;
-
   const fSrc    = 1 / EMIT_INTERVAL;
   const factor  = dopplerFactor();
   const fObs    = fSrc * factor;
@@ -624,39 +606,46 @@ function updateReadouts() {
 
   const pv = document.getElementById('pitchVal');
   const dx = observerX - ambCentreX();
-  if (Math.abs(dx) < 5) {
-    pv.textContent  = '—';
+  if (!ambMoving || Math.abs(dx) < 5) {
+    pv.textContent  = '0%';
     pv.style.color  = '#e0e0e0';
   } else if (dx > 0) {
     pv.textContent  = '+' + Math.abs(pctChange).toFixed(0) + '%';
     pv.style.color  = '#81c784';
   } else {
-    pv.textContent  = '−' + Math.abs(pctChange).toFixed(0) + '%';
+    pv.textContent  = '\u2212' + Math.abs(pctChange).toFixed(0) + '%';
     pv.style.color  = '#ffb74d';
   }
 }
 
 function updateInsight() {
   const box = document.getElementById('insightBox');
-  if (simState !== 'playing') {
-    box.textContent = 'Press Play to start. Watch how wave rings bunch up in front of the moving ambulance and spread out behind — this is the Doppler effect.';
+  if (simState === 'idle') {
+    box.textContent = 'Press Play to start. Watch how wave rings bunch up in front of the moving ambulance and spread out behind \u2014 this is the Doppler effect.';
+    return;
+  }
+  if (simState === 'paused') {
+    box.textContent = 'Paused \u2014 sound waves frozen in place. Notice the spacing: compressed rings in front, stretched rings behind.';
+    return;
+  }
+  // Playing
+  if (!ambMoving) {
+    box.textContent = 'The ambulance has stopped next to the observer. Waves from the stationary source are evenly spaced \u2014 no Doppler shift.';
     return;
   }
   const dx = observerX - ambCentreX();
   if (Math.abs(dx) <= 40) {
     box.textContent = 'The ambulance is passing the observer right now! The pitch shifts instantly from high to low.';
   } else if (dx > 0) {
-    box.textContent = 'The ambulance is moving toward the observer. Sound waves are compressed — the observer hears a HIGHER pitch than the actual siren.';
+    box.textContent = 'The ambulance is moving toward the observer. Sound waves are compressed \u2014 the observer hears a HIGHER pitch than the actual siren.';
   } else {
-    box.textContent = 'The ambulance has passed and is moving away. Sound waves are stretched — the observer hears a LOWER pitch.';
+    box.textContent = 'The ambulance has passed and is moving away. Sound waves are stretched \u2014 the observer hears a LOWER pitch.';
   }
 }
 
 // ── Hit detection ──────────────────────────────────────────────────────
 function checkHits(dt) {
-  if (hitTimer > 0) {
-    hitTimer = Math.max(0, hitTimer - dt);
-  }
+  if (hitTimer > 0) hitTimer = Math.max(0, hitTimer - dt);
   for (const w of waves) {
     const distToObs = Math.abs(observerX - w.cx);
     if (Math.abs(w.r - distToObs) < 8) {
@@ -672,21 +661,27 @@ function animate(timestamp) {
   const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
   lastTime = timestamp;
 
-  // Move ambulance
-  ambX += ambSpeed * dt;
+  // Move ambulance (or stop at right observer)
+  if (observerPos === 'right' && ambCentreX() >= observerX) {
+    ambX = observerX - AMB_W / 2;
+    ambMoving = false;
+  } else {
+    ambX += ambSpeed * dt;
+    ambMoving = true;
+  }
 
-  // Loop: when off right edge, reset
-  if (ambX > CANVAS_W + 100) {
-    ambX  = -100;
+  // Loop: when off right edge, reset (not for 'right' observer — ambulance stops)
+  if (observerPos !== 'right' && ambX > CANVAS_W + 100) {
+    ambX = getStartX();
     waves = [];
     emitTimer = 0;
   }
 
-  // Emit waves while on canvas
+  // Emit waves while ambulance is on canvas and moving
   const cx = ambCentreX();
   const cy = ambCentreY();
   const onCanvas = ambX > -AMB_W && ambX < CANVAS_W;
-  if (onCanvas) {
+  if (onCanvas && ambMoving) {
     emitTimer += dt;
     if (emitTimer >= EMIT_INTERVAL) {
       emitTimer -= EMIT_INTERVAL;
@@ -695,17 +690,10 @@ function animate(timestamp) {
   }
 
   // Grow waves
-  for (const w of waves) {
-    w.r += SOUND_SPEED * dt;
-  }
-  // Remove expired waves
+  for (const w of waves) w.r += SOUND_SPEED * dt;
   waves = waves.filter(w => w.r < 650);
 
-  // Hit check
   checkHits(dt);
-
-  // Siren audio
-  updateAudio(dt);
 
   drawFrame();
   updateReadouts();
@@ -732,41 +720,65 @@ function setSpeed(spd) {
 }
 
 function playSim() {
+  if (simState === 'paused') {
+    // Resume from pause
+    simState  = 'playing';
+    running   = true;
+    lastTime  = null;
+    // Re-enable siren if checkbox is on
+    if (document.getElementById('soundChk').checked) startSirenLoop();
+    animId = requestAnimationFrame(animate);
+    return;
+  }
   if (simState === 'playing') return;
+
+  // Fresh start from idle
   simState  = 'playing';
   running   = true;
-  ambX      = -100;
+  ambX      = getStartX();
+  ambMoving = true;
   waves     = [];
   emitTimer = 0;
   hitTimer  = 0;
-  sirenTimer = 0;
   lastTime  = null;
-  startAudio();
-  animId    = requestAnimationFrame(animate);
+  if (document.getElementById('soundChk').checked) startSirenLoop();
+  animId = requestAnimationFrame(animate);
+}
+
+function pauseSim() {
+  if (simState !== 'playing') return;
+  simState  = 'paused';
+  running   = false;
+  ambMoving = false;
+  if (animId) cancelAnimationFrame(animId);
+  // Turn off sound on pause
+  stopSirenLoop();
+  updateInsight();
 }
 
 function stopSim() {
   simState  = 'idle';
   running   = false;
+  ambMoving = false;
   if (animId) cancelAnimationFrame(animId);
-  ambX    = -100;
-  waves   = [];
+  stopSirenLoop();
+  ambX      = getStartX();
+  waves     = [];
   emitTimer = 0;
   hitTimer  = 0;
   lastTime  = null;
-  stopAudio();
   clearReadouts();
-  document.getElementById('insightBox').textContent =
-    'Press Play to start. Watch how wave rings bunch up in front of the moving ambulance and spread out behind — this is the Doppler effect.';
+  updateInsight();
   drawStatic();
 }
 
-// ── Sound checkbox ─────────────────────────────────────────────────────
+// ── Sound checkbox (independent of sim state) ─────────────────────────
 document.getElementById('soundChk').addEventListener('change', function() {
-  if (!this.checked && gainNode) {
-    stopAudio();
-  } else if (this.checked && simState === 'playing') {
-    startAudio();
+  if (this.checked) {
+    // Sound on: play siren (unless paused — pause mutes audio)
+    if (simState !== 'paused') startSirenLoop();
+  } else {
+    stopSirenLoop();
   }
 });
 
